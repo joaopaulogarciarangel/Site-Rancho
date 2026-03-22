@@ -122,12 +122,16 @@ export default function AdminDashboard() {
 
   const analiseClima = vendas.reduce((acc, v) => {
     const clima = v.clima_condicao || 'Não Informado';
-    if (!acc[clima]) acc[clima] = { faturamento: 0, mesas: 0 };
+    if (!acc[clima]) acc[clima] = { faturamento: 0, dias: new Set<string>() };
+    
     acc[clima].faturamento += Number(v.valor_total);
-    acc[clima].mesas += 1;
+    
+    // Salva a data exata para sabermos em quantos dias diferentes esse clima ocorreu
+    const dataVenda = new Date(v.criado_em).toDateString();
+    acc[clima].dias.add(dataVenda);
+    
     return acc;
-  }, {} as Record<string, { faturamento: number, mesas: number }>);
-
+  }, {} as Record<string, { faturamento: number, dias: Set<string> }>);
   // ==========================================
   // LÓGICAS DE AÇÕES DO HISTÓRICO
   // ==========================================
@@ -192,6 +196,12 @@ export default function AdminDashboard() {
     const item = estoque.find(e => e.id === id);
     if (!item) return;
     const novaQtd = Math.max(0, Number(item.quantidade_atual) + delta);
+    setEstoque(prev => prev.map(e => e.id === id ? { ...e, quantidade_atual: novaQtd } : e));
+    await supabase.from('estoque').update({ quantidade_atual: novaQtd }).eq('id', id);
+  };
+
+  const definirQuantidadeEstoque = async (id: string | number, novaQtd: number) => {
+    if (isNaN(novaQtd) || novaQtd < 0) return;
     setEstoque(prev => prev.map(e => e.id === id ? { ...e, quantidade_atual: novaQtd } : e));
     await supabase.from('estoque').update({ quantidade_atual: novaQtd }).eq('id', id);
   };
@@ -414,11 +424,14 @@ export default function AdminDashboard() {
                 <p className="text-xs text-gray-500 font-medium mb-4">Baseado no histórico total do restaurante.</p>
                 
                 <div className="space-y-3">
-                  {/* FIX TYPESCRIPT: Tipagem explícita para o Object.entries */}
-                  {(Object.entries(analiseClima) as [string, { faturamento: number, mesas: number }][])
+                  {/* FIX TYPESCRIPT: Tipagem atualizada para o Set de dias */}
+                  {(Object.entries(analiseClima) as [string, { faturamento: number, dias: Set<string> }][])
                     .filter(([c]) => c !== 'Não Informado')
                     .map(([clima, dados]) => {
-                    const ticketLocal = dados.mesas > 0 ? dados.faturamento / dados.mesas : 0;
+                    
+                    // Cálculo do Faturamento Médio por Dia
+                    const faturamentoMedio = dados.dias.size > 0 ? dados.faturamento / dados.dias.size : 0;
+                    
                     return (
                       <div key={clima} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                         <div className="flex items-center gap-2">
@@ -428,8 +441,8 @@ export default function AdminDashboard() {
                           <span className="font-bold text-gray-800 text-sm">{clima}</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">T. Médio</p>
-                          <p className="font-black text-gray-900">R$ {ticketLocal.toFixed(2)}</p>
+                          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Fat. Médio/Dia</p>
+                          <p className="font-black text-gray-900">R$ {faturamentoMedio.toFixed(2)}</p>
                         </div>
                       </div>
                     )
@@ -479,9 +492,25 @@ export default function AdminDashboard() {
                               <td className="p-4 font-extrabold text-gray-900">{item.nome_produto}</td>
                               <td className="p-4 text-center text-sm font-bold text-gray-800">{item.unidade_medida}</td>
                               <td className="p-4">
-                                <div className="flex items-center justify-center gap-2 md:gap-3">
+                                <div className="flex items-center justify-center gap-1 md:gap-2">
                                   <button onClick={() => alterarQuantidadeEstoque(item.id, -1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-red-50 hover:text-red-600 rounded-lg shadow-sm transition-colors active:scale-95"><Minus className="w-4 h-4" /></button>
-                                  <span className="font-black text-xl md:text-2xl w-10 md:w-12 text-center text-gray-900">{item.quantidade_atual}</span>
+                                  
+                                  {/* CAMPO DE DIGITAÇÃO DIRETA */}
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    value={item.quantidade_atual}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                      setEstoque(prev => prev.map(el => el.id === item.id ? { ...el, quantidade_atual: val } : el));
+                                    }}
+                                    onBlur={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      definirQuantidadeEstoque(item.id, isNaN(val) ? 0 : val);
+                                    }}
+                                    className="font-black text-xl md:text-2xl w-16 md:w-20 text-center text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-orange-500 focus:outline-none transition-colors"
+                                  />
+
                                   <button onClick={() => alterarQuantidadeEstoque(item.id, 1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-green-50 hover:text-green-600 rounded-lg shadow-sm transition-colors active:scale-95"><Plus className="w-4 h-4" /></button>
                                 </div>
                               </td>
