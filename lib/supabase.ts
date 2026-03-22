@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+let supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Se as chaves estiverem vazias, o app não vai travar o JS, apenas não vai buscar dados
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseAnonKey || 'placeholder'
-);
+// Se a Vercel mandar a URL sem o https://, isso impede que o site quebre no celular
+if (!supabaseUrl.startsWith('http')) {
+  console.error("ERRO: URL do Supabase inválida. Usando URL de fallback para não quebrar a tela.");
+  supabaseUrl = 'https://link-falso.supabase.co';
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
