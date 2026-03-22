@@ -236,7 +236,7 @@ export default function GarcomApp() {
     setMesaAtiva(null);
   };
 
-  const liberarMesaCaixa = async (numero: number, e: React.MouseEvent) => {
+  const liberarMesaCaixa = async (numero: number, e: any) => {
     e.stopPropagation();
     if (window.confirm(`Confirmar pagamento e liberação da Mesa ${numero}?`)) {
       try {
@@ -290,15 +290,6 @@ export default function GarcomApp() {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
         
-        {/* === BOTÃO DE TESTE GIGANTE E VERMELHO === */}
-        <a 
-          href="/teste" 
-          className="w-full max-w-md bg-red-600 text-white text-center font-black text-xl py-5 rounded-2xl shadow-xl mb-6 mt-4 cursor-pointer"
-        >
-          TESTE DE CLIQUE CELULAR
-        </a>
-        {/* ======================================= */}
-
         <div className="w-full max-w-md mb-8 text-center">
           <UtensilsCrossed className="w-12 h-12 mx-auto text-orange-600 mb-4" />
           <h1 className="text-3xl font-black text-gray-900">Salão Principal</h1>
@@ -314,49 +305,49 @@ export default function GarcomApp() {
             return (
               <div
                 key={numero}
-                className={`relative border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all select-none
+                className={`relative border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all select-none cursor-pointer
                   ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
                     mesaOcupada ? 'bg-orange-50 border-orange-300 active:scale-95' : 
                     'bg-white border-gray-300 active:scale-95'}`}
+                onClick={() => {
+                  if (!aguardandoPagamento) abrirMesa(numero);
+                }}
+                onTouchEnd={(e) => {
+                  // O onTouchEnd garante o funcionamento rápido no celular
+                  if (!aguardandoPagamento) {
+                    e.preventDefault(); // Evita que o celular clique duas vezes
+                    abrirMesa(numero);
+                  }
+                }}
               >
-                {/* A MÁGICA ACONTECE AQUI: 
-                  Botão 100% invisível que cobre a div toda. O iOS não tem como bloquear isso.
-                */}
-                {!aguardandoPagamento && (
-                  <button 
-                    type="button"
-                    onClick={() => abrirMesa(numero)}
-                    className="absolute inset-0 w-full h-full z-10 cursor-pointer rounded-2xl outline-none"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  />
-                )}
-
-                {/* VISUAL DA MESA (Fica embaixo do botão invisível) */}
                 {mesaOcupada && !aguardandoPagamento && (
                   <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse" />
                 )}
 
-                <span className={`text-sm font-bold uppercase tracking-widest mb-1 
+                <span className={`text-sm font-bold uppercase tracking-widest mb-1 pointer-events-none
                   ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
                   Mesa
                 </span>
                 
-                <span className={`text-4xl font-black 
+                <span className={`text-4xl font-black pointer-events-none
                   ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
                   {numero}
                 </span>
 
-                {/* BOTÃO LIBERAR (Tem prioridade z-20 para ficar acima do botão invisível) */}
                 {aguardandoPagamento && (
                   <button 
-                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       liberarMesaCaixa(numero, e);
                     }}
-                    className="absolute bottom-3 z-20 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full cursor-pointer hover:bg-blue-700 active:scale-95 shadow-sm"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      liberarMesaCaixa(numero, e);
+                    }}
+                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-blue-700 active:scale-95 shadow-sm"
                   >
-                    Liberar
+                    Liberar Mesa
                   </button>
                 )}
               </div>
