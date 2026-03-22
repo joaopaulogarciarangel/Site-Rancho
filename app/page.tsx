@@ -21,11 +21,6 @@ interface ItemPedido {
 }
 
 export default function GarcomApp() {
-  // =====================================================
-  // TODOS OS HOOKS PRIMEIRO — sem exceção, sem condições
-  // Isso é obrigatório pelas Rules of Hooks do React.
-  // Qualquer hook depois de um return condicional crasha o app.
-  // =====================================================
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
@@ -44,15 +39,12 @@ export default function GarcomApp() {
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
 
-  // =====================================================
-  // RETURNS CONDICIONAIS — só depois de todos os hooks
-  // =====================================================
-
   // --- LÓGICA DE NAVEGAÇÃO ---
   const abrirMesa = (numeroMesa: number) => {
     setCarrinho([]);
     setMesaAtiva(numeroMesa);
-    window.scrollTo(0, 0);
+    // Timeout evita que o iOS trave ao renderizar a tela e rolar ao mesmo tempo
+    setTimeout(() => window.scrollTo(0, 0), 10);
   };
 
   const voltarParaMesas = () => {
@@ -291,7 +283,6 @@ export default function GarcomApp() {
 
             return (
               <div key={numero} className="relative">
-                {/* Botão principal da mesa — <button> nativo sem filhos interativos */}
                 <button
                   type="button"
                   disabled={aguardandoPagamento}
@@ -318,7 +309,6 @@ export default function GarcomApp() {
                   </span>
                 </button>
 
-                {/* "Liberar Mesa" — IRMÃO do button acima, nunca filho */}
                 {aguardandoPagamento && (
                   <button
                     type="button"
@@ -361,7 +351,8 @@ export default function GarcomApp() {
           </button>
         </div>
 
-        <div className="flex overflow-x-auto hide-scrollbar p-3 gap-2">
+        {/* Barra de Categorias sem a tag style injetada */}
+        <div className="flex overflow-x-auto p-3 gap-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {CATEGORIAS.map((cat) => (
             <button
               key={cat}
@@ -587,7 +578,7 @@ export default function GarcomApp() {
               <h3 className="font-black text-2xl text-gray-900">Conta Mesa {mesaAtiva}</h3>
               <button onClick={() => setModalContaAberto(false)} className="p-2 bg-gray-200 rounded-full text-gray-800"><XCircle className="w-5 h-5" /></button>
             </div>
-            <div className="p-5 overflow-y-auto flex-1 space-y-3 bg-white hide-scrollbar">
+            <div className="p-5 overflow-y-auto flex-1 space-y-3 bg-white" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Itens Consumidos</h4>
               {comandaDaMesaAtiva.map(item => (
                 <div key={item.uid} className="flex justify-between items-center text-gray-800 border-b border-gray-100 pb-2">
@@ -630,11 +621,6 @@ export default function GarcomApp() {
           </div>
         </div>
       )}
-
-      <style dangerouslySetInnerHTML={{__html: `
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}} />
     </div>
   );
 }
