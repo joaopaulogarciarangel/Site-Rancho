@@ -12,7 +12,7 @@ const OPCOES_ACOMPANHAMENTOS = [
 ];
 
 interface ItemPedido {
-  uid: string; // ID único para a linha do carrinho
+  uid: string;
   idProduto: string;
   nome: string;
   preco: number;
@@ -33,9 +33,8 @@ export default function GarcomApp() {
   const [modalCarrinhoAberto, setModalCarrinhoAberto] = useState(false);
   const [mesasAguardandoPagamento, setMesasAguardandoPagamento] = useState<number[]>([]);
   const [modalContaAberto, setModalContaAberto] = useState(false);
-  const [incluirTaxa, setIncluirTaxa] = useState(true); // Começa com os 10% marcados
+  const [incluirTaxa, setIncluirTaxa] = useState(true);
 
-  // ESTADOS DO MODAL DE ACOMPANHAMENTOS
   const [modalAcomp, setModalAcomp] = useState<{
     produto: Produto;
     idOpcao: string;
@@ -55,12 +54,11 @@ export default function GarcomApp() {
     setModalCarrinhoAberto(false);
   };
 
-  // --- LÓGICA DO CARRINHO (RASCUNHO) COM CORREÇÃO DO BUG 2 em 2 ---
+  // --- LÓGICA DO CARRINHO ---
   const adicionarAoCarrinho = (produto: Produto, idFinal: string, rotulo: string, preco: number, observacao: string = '') => {
     setCarrinho((prev) => {
       const existenteIndex = prev.findIndex(i => i.idProduto === idFinal && i.observacao === observacao);
       if (existenteIndex >= 0) {
-        // CORREÇÃO: Cria uma cópia profunda do item para o React Strict Mode não somar duplicado
         const novo = [...prev];
         novo[existenteIndex] = { ...novo[existenteIndex], quantidade: novo[existenteIndex].quantidade + 1 };
         return novo;
@@ -92,7 +90,6 @@ export default function GarcomApp() {
     });
   };
 
-  // --- FUNÇÕES EXCLUSIVAS DE DENTRO DO CARRINHO (MODAL) ---
   const alterarQuantidadeUID = (uid: string, delta: number) => {
     setCarrinho((prev) => prev.map(item => {
       if (item.uid === uid) return { ...item, quantidade: item.quantidade + delta };
@@ -160,7 +157,7 @@ export default function GarcomApp() {
     setModalAcomp(null);
   };
 
-  // --- LÓGICA DA COMANDA (ITENS JÁ ENVIADOS) ---
+  // --- LÓGICA DA COMANDA ---
   const alterarQuantidadeComanda = (uid: string, delta: number) => {
     if (!mesaAtiva) return;
     
@@ -172,17 +169,15 @@ export default function GarcomApp() {
 
       const novaQuantidade = itemParaAlterar.quantidade + delta;
 
-      // Se chegar a zero, remove e avisa a produção
       if (novaQuantidade <= 0) {
         if(window.confirm(`Deseja cancelar totalmente ${itemParaAlterar.nome}? Um aviso será enviado para a produção.`)) {
           if (itemParaAlterar.setor === 'cozinha') alert(`⚠️ AVISO PARA A COZINHA: Cancelar preparo de ${itemParaAlterar.nome} da Mesa ${mesaAtiva}!`);
           else alert(`⚠️ AVISO PARA O BAR: Cancelar ${itemParaAlterar.nome} da Mesa ${mesaAtiva}!`);
           return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
         }
-        return prev; // Se ele cancelar o popup, não faz nada
+        return prev;
       }
 
-      // Se for apenas alteração de quantidade
       return {
         ...prev,
         [mesaAtiva]: comandaAtual.map(i => i.uid === uid ? { ...i, quantidade: novaQuantidade } : i)
@@ -204,14 +199,12 @@ export default function GarcomApp() {
     });
   };
 
-  // --- LÓGICA DA COMANDA ---
+  // --- ENVIO DO PEDIDO ---
   const enviarParaCozinhaEBar = async () => {
     if (carrinho.length === 0 || !mesaAtiva) return;
 
-    // 1. Separa apenas os itens que a cozinha precisa preparar
     const itensCozinha = carrinho.filter(item => item.setor === 'cozinha');
 
-    // 2. Se tiver comida, dispara para a nuvem (Supabase)
     if (itensCozinha.length > 0) {
       const { error } = await supabase
         .from('pedidos')
@@ -222,11 +215,10 @@ export default function GarcomApp() {
       if (error) {
         console.error("Erro ao enviar para o Supabase:", error);
         alert("Erro na conexão! O pedido não foi enviado para a cozinha.");
-        return; // Trava aqui e não limpa o carrinho para o garçom não perder o pedido
+        return;
       }
     }
 
-    // 3. Atualiza a memória local do garçom (Já na Comanda)
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
       const novaComanda = [...comandaAtual];
@@ -254,7 +246,6 @@ export default function GarcomApp() {
   const totalGeral = totalCarrinho + totalComanda;
   const qtdItensCarrinho = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
 
-  // --- LÓGICA DE FECHAMENTO DE CONTA ---
   const subtotalConta = totalComanda;
   const valorTaxa = incluirTaxa ? subtotalConta * 0.1 : 0;
   const totalFinalConta = subtotalConta + valorTaxa;
@@ -262,9 +253,7 @@ export default function GarcomApp() {
   const confirmarFechamentoConta = () => {
     if (!mesaAtiva) return;
     
-    // Salva a forma de pagamento escolhida para esta mesa
     setPagamentosPorMesa(prev => ({ ...prev, [mesaAtiva!]: formaPagamentoAtual }));
-    
     setMesasAguardandoPagamento(prev => !prev.includes(mesaAtiva!) ? [...prev, mesaAtiva!] : prev);
     alert(`Conta da Mesa ${mesaAtiva} enviada para o Caixa!`);
     
@@ -281,10 +270,8 @@ export default function GarcomApp() {
         const itensConsumidos = comandasPorMesa[numero] || [];
         const subtotal = itensConsumidos.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
         const totalFinal = incluirTaxa ? subtotal * 1.1 : subtotal;
-        
         const pagamentoEscolhido = pagamentosPorMesa[numero] || 'Não Informado';
 
-        // 1. Salva no Histórico do Gestor
         const { error: erroHistorico } = await supabase.from('vendas_historico').insert([{
           mesa: numero,
           itens: itensConsumidos,
@@ -294,11 +281,7 @@ export default function GarcomApp() {
 
         if (erroHistorico) throw erroHistorico;
 
-        // ==========================================
-        // 2. BAIXA AUTOMÁTICA NO ESTOQUE (NOVO!)
-        // ==========================================
         try {
-          // Pega só os nomes do que foi consumido para buscar no banco
           const nomesConsumidos = itensConsumidos.map((item: any) => item.nome);
           
           const { data: estoqueAtual, error: erroBusca } = await supabase
@@ -307,15 +290,11 @@ export default function GarcomApp() {
             .in('nome_produto', nomesConsumidos);
 
           if (!erroBusca && estoqueAtual) {
-            // Faz um loop em cada item consumido para subtrair
             for (const itemConsumido of itensConsumidos) {
               const itemNoEstoque = estoqueAtual.find(e => e.nome_produto === itemConsumido.nome);
               
               if (itemNoEstoque) {
-                // Calcula a nova quantidade (não deixa ficar menor que zero)
                 const novaQuantidade = Math.max(0, Number(itemNoEstoque.quantidade_atual) - itemConsumido.quantidade);
-                
-                // Atualiza no banco
                 await supabase
                   .from('estoque')
                   .update({ quantidade_atual: novaQuantidade })
@@ -325,14 +304,10 @@ export default function GarcomApp() {
           }
         } catch (err) {
           console.error("Erro ao descontar do estoque:", err);
-          // Não damos throw aqui para não impedir a liberação da mesa caso o estoque falhe
         }
-        // ==========================================
 
-        // 3. Limpa do monitor da cozinha
         await supabase.from('pedidos').update({ status: 'finalizado' }).eq('mesa', numero);
 
-        // 4. Limpa a tela do Garçom
         setComandasPorMesa(prev => {
           const novo = {...prev};
           delete novo[numero];
@@ -353,7 +328,7 @@ export default function GarcomApp() {
   };
 
   // ==========================================
-  // TELA 1: SELEÇÃO DE MESAS
+  // TELA 1: SELEÇÃO DE MESAS — CORRIGIDA
   // ==========================================
   if (mesaAtiva === null) {
     return (
@@ -371,19 +346,29 @@ export default function GarcomApp() {
             const aguardandoPagamento = mesasAguardandoPagamento.includes(numero);
 
             return (
-              <button
+              // FIX: Trocado <button> por <div role="button"> para permitir
+              // um <button> filho ("Liberar Mesa") sem violar o HTML.
+              // Adicionado style touchAction para remover o delay de 300ms no mobile.
+              <div
                 key={numero}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   if (!aguardandoPagamento) abrirMesa(numero);
                 }}
-                className={`w-full cursor-pointer select-none border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all relative
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (!aguardandoPagamento) abrirMesa(numero);
+                  }
+                }}
+                style={{ touchAction: 'manipulation' }}
+                className={`w-full cursor-pointer select-none border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm relative
                   ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
-                    mesaOcupada ? 'bg-orange-50 border-orange-300 hover:border-orange-500 active:scale-95' : 
-                    'bg-white border-gray-300 hover:border-gray-500 active:scale-95'}`}
+                    mesaOcupada ? 'bg-orange-50 border-orange-300 active:scale-95' : 
+                    'bg-white border-gray-300 active:scale-95'}`}
               >
                 {mesaOcupada && !aguardandoPagamento && (
-                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse pointer-events-none"></div>
+                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse pointer-events-none" />
                 )}
                 
                 <span className={`pointer-events-none text-sm font-bold uppercase tracking-widest mb-1 
@@ -396,18 +381,21 @@ export default function GarcomApp() {
                 </span>
 
                 {aguardandoPagamento && (
-                  <div 
+                  // FIX: Trocado <div onClick> por <button type="button">,
+                  // que é semanticamente válido dentro de um <div role="button">.
+                  <button
+                    type="button"
+                    style={{ touchAction: 'manipulation' }}
                     onClick={(e) => {
-                      e.preventDefault();
                       e.stopPropagation();
                       liberarMesaCaixa(numero, e);
                     }}
-                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full cursor-pointer hover:bg-blue-700 active:scale-95 shadow-sm"
+                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-blue-700 active:scale-95 shadow-sm"
                   >
                     Liberar Mesa
-                  </div>
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -519,7 +507,7 @@ export default function GarcomApp() {
       </div>
 
       {/* ==========================================
-          MODAL DE ESCOLHA DE ACOMPANHAMENTOS (OVERLAY)
+          MODAL DE ESCOLHA DE ACOMPANHAMENTOS
           ========================================== */}
       {modalAcomp && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-gray-900/60 backdrop-blur-sm">
@@ -671,7 +659,6 @@ export default function GarcomApp() {
                           <span className="font-black text-gray-900 text-base ml-2 whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
                         </div>
                         
-                        {/* NOVOS BOTÕES DE + e - NA COMANDA */}
                         <div className="flex justify-between items-center border-t border-gray-100 pt-3">
                           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
                             <button onClick={() => alterarQuantidadeComanda(item.uid, -1)} className="p-1 bg-white rounded shadow-sm text-gray-900"><Minus className="w-4 h-4" /></button>
@@ -693,7 +680,7 @@ export default function GarcomApp() {
                   </div>
                 )}
               </div>
-              {/* BOTÃO PEDIR CONTA (Fica embaixo dos itens da Comanda) */}
+
               {comandaDaMesaAtiva.length > 0 && carrinho.length === 0 && (
                 <div className="pt-4 border-t border-gray-200 mt-6">
                   <button 
@@ -732,9 +719,7 @@ export default function GarcomApp() {
           </button>
         </div>
       )}
-      {/* ==========================================
-          MODAL DE RESUMO DA CONTA (FECHAMENTO)
-          ========================================== */}
+
       {/* ==========================================
           MODAL DE RESUMO DA CONTA (FECHAMENTO)
           ========================================== */}
@@ -742,13 +727,11 @@ export default function GarcomApp() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-md max-h-[90vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
             
-            {/* CABEÇALHO */}
             <div className="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
               <h3 className="font-black text-2xl text-gray-900">Conta Mesa {mesaAtiva}</h3>
               <button onClick={() => setModalContaAberto(false)} className="p-2 bg-gray-200 rounded-full text-gray-800 hover:bg-gray-300 transition-colors"><XCircle className="w-5 h-5" /></button>
             </div>
 
-            {/* LISTA DE ITENS */}
             <div className="p-5 overflow-y-auto flex-1 space-y-3 bg-white hide-scrollbar">
               <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Itens Consumidos</h4>
               
@@ -760,16 +743,13 @@ export default function GarcomApp() {
               ))}
             </div>
 
-            {/* RODAPÉ: TAXAS, PAGAMENTO E BOTÃO */}
             <div className="p-5 bg-gray-50 border-t border-gray-200 space-y-4">
               
-              {/* SUBTOTAL */}
               <div className="flex justify-between items-center text-gray-600">
                 <span className="font-bold">Subtotal</span>
                 <span className="font-black">R$ {subtotalConta.toFixed(2)}</span>
               </div>
               
-              {/* CAIXA DE 10% CLICÁVEL */}
               <div 
                 className="flex justify-between items-center text-gray-900 bg-white p-3 rounded-xl border border-gray-200 shadow-sm cursor-pointer select-none active:scale-[0.98] transition-transform" 
                 onClick={() => setIncluirTaxa(!incluirTaxa)}
@@ -783,7 +763,6 @@ export default function GarcomApp() {
                 <span className="font-black">R$ {valorTaxa.toFixed(2)}</span>
               </div>
 
-              {/* SELEÇÃO DE FORMA DE PAGAMENTO */}
               <div className="pt-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Forma de Pagamento</label>
                 <select 
@@ -798,13 +777,11 @@ export default function GarcomApp() {
                 </select>
               </div>
 
-              {/* TOTAL FINAL */}
               <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                 <span className="font-black text-2xl text-gray-900">Total</span>
                 <span className="font-black text-3xl text-orange-700">R$ {totalFinalConta.toFixed(2)}</span>
               </div>
 
-              {/* BOTÃO DE ENCERRAR */}
               <button 
                 onClick={confirmarFechamentoConta}
                 className="w-full mt-2 bg-orange-600 text-white font-black text-lg py-4 rounded-xl shadow-lg hover:bg-orange-500 active:scale-[0.98] transition-transform"
