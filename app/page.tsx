@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2 } from 'lucide-react';
 import { CATEGORIAS, PRODUTOS, Produto } from '../data/cardapio';
 import { supabase } from '../lib/supabase';
@@ -26,7 +26,6 @@ export default function GarcomApp() {
   // Isso é obrigatório pelas Rules of Hooks do React.
   // Qualquer hook depois de um return condicional crasha o app.
   // =====================================================
-  const [montado, setMontado] = useState(false);
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
@@ -45,21 +44,9 @@ export default function GarcomApp() {
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
 
-  // useEffect também fica aqui no topo, nunca depois de returns condicionais
-  useEffect(() => {
-    setMontado(true);
-  }, []);
-
   // =====================================================
   // RETURNS CONDICIONAIS — só depois de todos os hooks
   // =====================================================
-  if (!montado) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="font-bold text-gray-700">Iniciando sistema...</p>
-      </div>
-    );
-  }
 
   // --- LÓGICA DE NAVEGAÇÃO ---
   const abrirMesa = (numeroMesa: number) => {
