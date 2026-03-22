@@ -268,7 +268,7 @@ export default function AdminDashboard() {
                         </tr>
                         
                         {/* ITENS DA CATEGORIA */}
-                        {itens.map((item) => (
+                        {(itens as any[]).map((item: any) => (
                             <tr key={item.id} className="border-b border-gray-100 hover:bg-orange-50/50 transition-colors">
                               <td className="p-4 font-extrabold text-gray-900">{item.nome_produto}</td>
                               <td className="p-4 text-center text-sm font-bold text-gray-800">{item.unidade_medida}</td>
