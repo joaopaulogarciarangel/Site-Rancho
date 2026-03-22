@@ -296,6 +296,16 @@ export default function GarcomApp() {
           <p className="text-gray-700 font-medium mt-1">Selecione a mesa para iniciar o pedido</p>
         </div>
 
+        {/* === BOTÃO DE TESTE PARA O CARDÁPIO === */}
+        <button 
+          type="button"
+          onClick={() => abrirMesa(99)}
+          className="w-full max-w-md bg-red-600 text-white text-center font-black text-xl py-5 rounded-2xl shadow-xl mb-6 mt-4 cursor-pointer active:scale-95"
+        >
+          TESTE: ABRIR MESA 99
+        </button>
+        {/* ======================================= */}
+
         <div className="grid grid-cols-2 gap-4 w-full max-w-md">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((numero) => {
             const itensNestaMesa = comandasPorMesa[numero] || [];
