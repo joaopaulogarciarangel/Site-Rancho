@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2, Search, Flame } from 'lucide-react';
 import { CATEGORIAS, PRODUTOS, Produto } from '../data/cardapio';
 import { supabase } from '../lib/supabase';
 
 const OPCOES_ACOMPANHAMENTOS = [
   'Farofa', 'Farofa de ovo', 'Queijo provolone', 'Batata rústica',
   'Aipim frito', 'Linguiça', 'Couve', 'Cebola', 'Molho vinagrete', 'Banana frita'
+];
+
+const PONTOS_CARNE = [
+  'Mal Passada', 'Ao Ponto para Mal', 'Ao Ponto', 'Ao Ponto para Bem', 'Bem Passada'
 ];
 
 interface ItemPedido {
@@ -21,10 +25,14 @@ interface ItemPedido {
 }
 
 export default function GarcomApp() {
+  // =====================================================
+  // TODOS OS HOOKS PRIMEIRO — sem exceção, sem condições
+  // =====================================================
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
   const [categoriaAtiva, setCategoriaAtiva] = useState(CATEGORIAS[0]);
+  const [termoBusca, setTermoBusca] = useState(''); // NOVO: Estado de Busca
   const [carrinho, setCarrinho] = useState<ItemPedido[]>([]);
   const [comandasPorMesa, setComandasPorMesa] = useState<Record<number, ItemPedido[]>>({});
   const [modalCarrinhoAberto, setModalCarrinhoAberto] = useState(false);
@@ -38,13 +46,13 @@ export default function GarcomApp() {
     preco: number;
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
+  const [pontoCarne, setPontoCarne] = useState(''); // NOVO: Estado do ponto da carne
 
   // =====================================================
   // RECUPERAR COMANDAS SALVAS AO ABRIR O APLICATIVO
   // =====================================================
   React.useEffect(() => {
     const carregarMesasAbertas = async () => {
-      // Puxa do Supabase todos os pedidos que não foram finalizados
       const { data, error } = await supabase
         .from('pedidos')
         .select('mesa, itens')
@@ -53,24 +61,18 @@ export default function GarcomApp() {
       if (data && !error) {
         const comandasRecuperadas: Record<number, ItemPedido[]> = {};
         
-        // Organiza os pedidos puxados do banco separando cada um na sua mesa
         data.forEach((pedido) => {
           const numeroMesa = pedido.mesa;
           if (!comandasRecuperadas[numeroMesa]) {
             comandasRecuperadas[numeroMesa] = [];
           }
-          
-          // Adiciona os itens à mesa correta
           if (pedido.itens && Array.isArray(pedido.itens)) {
             comandasRecuperadas[numeroMesa].push(...pedido.itens);
           }
         });
-
-        // Salva na memória do garçom, preenchendo as bolinhas laranjas nas mesas
         setComandasPorMesa(comandasRecuperadas);
       }
     };
-
     carregarMesasAbertas();
   }, []);
 
@@ -80,7 +82,6 @@ export default function GarcomApp() {
   const iniciouRef = React.useRef(false);
 
   React.useEffect(() => {
-    // 1. Ao abrir a página, tenta puxar a memória do celular
     const mesaSalva = localStorage.getItem('garcom_mesa');
     const carrinhoSalvo = localStorage.getItem('garcom_carrinho');
 
@@ -90,12 +91,9 @@ export default function GarcomApp() {
         setCarrinho(JSON.parse(carrinhoSalvo));
       } catch (e) {}
     }
-    
-    // Libera a gravação após ler os dados iniciais
     setTimeout(() => { iniciouRef.current = true; }, 500);
   }, []);
 
-  // 2. Sempre que a mesa ativa mudar, salva o número dela
   React.useEffect(() => {
     if (iniciouRef.current) {
       if (mesaAtiva !== null) {
@@ -106,7 +104,6 @@ export default function GarcomApp() {
     }
   }, [mesaAtiva]);
 
-  // 3. Sempre que adicionar/remover um item, salva o carrinho inteiro
   React.useEffect(() => {
     if (iniciouRef.current) {
       if (carrinho.length > 0) {
@@ -116,13 +113,14 @@ export default function GarcomApp() {
       }
     }
   }, [carrinho]);
-  // =====================================================
 
-  // --- LÓGICA DE NAVEGAÇÃO ---
+  // =====================================================
+  // LÓGICA DE NAVEGAÇÃO
+  // =====================================================
   const abrirMesa = (numeroMesa: number) => {
     setCarrinho([]);
+    setTermoBusca(''); // Limpa a busca ao entrar na mesa
     setMesaAtiva(numeroMesa);
-    // Timeout evita que o iOS trave ao renderizar a tela e rolar ao mesmo tempo
     setTimeout(() => window.scrollTo(0, 0), 10);
   };
 
@@ -184,6 +182,7 @@ export default function GarcomApp() {
     if (produto.categoria === 'Carnes Principais') {
       setModalAcomp({ produto, idOpcao: idOpcao || '', rotulo: rotulo || '', preco: preco || produto.preco });
       setSelecaoAcomp({});
+      setPontoCarne(''); // Reseta o ponto da carne
     } else {
       const idFinal = idOpcao ? `${produto.id}-${idOpcao}` : produto.id;
       adicionarAoCarrinho(produto, idFinal, rotulo || '', preco !== undefined ? preco : produto.preco);
@@ -212,12 +211,20 @@ export default function GarcomApp() {
 
   const confirmarModalAcomp = () => {
     if (!modalAcomp) return;
-    const textoObservacao = Object.entries(selecaoAcomp)
+
+    // Constrói os acompanhamentos
+    const obsAcomps = Object.entries(selecaoAcomp)
       .filter(([_, qtd]) => qtd > 0)
       .map(([nome, qtd]) => qtd > 1 ? `${qtd}x ${nome}` : nome)
       .join(', ');
+    
+    // Concatena Ponto + Acompanhamentos
+    let textoObservacao = '';
+    if (pontoCarne) textoObservacao += `[Ponto: ${pontoCarne}] `;
+    if (obsAcomps) textoObservacao += `com ${obsAcomps}`;
+
     const idFinal = modalAcomp.idOpcao ? `${modalAcomp.produto.id}-${modalAcomp.idOpcao}` : modalAcomp.produto.id;
-    adicionarAoCarrinho(modalAcomp.produto, idFinal, modalAcomp.rotulo, modalAcomp.preco, textoObservacao);
+    adicionarAoCarrinho(modalAcomp.produto, idFinal, modalAcomp.rotulo, modalAcomp.preco, textoObservacao.trim());
     setModalAcomp(null);
   };
 
@@ -409,7 +416,10 @@ export default function GarcomApp() {
   // ==========================================
   // TELA 2: CARDÁPIO DA MESA
   // ==========================================
-  const produtosFiltrados = PRODUTOS.filter(p => p.categoria === categoriaAtiva);
+  // FILTRO DINÂMICO (Por busca ou por categoria)
+  const produtosFiltrados = termoBusca.trim() !== '' 
+    ? PRODUTOS.filter(p => p.nome.toLowerCase().includes(termoBusca.toLowerCase()))
+    : PRODUTOS.filter(p => p.categoria === categoriaAtiva);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28">
@@ -430,14 +440,31 @@ export default function GarcomApp() {
           </button>
         </div>
 
-        {/* Barra de Categorias sem a tag style injetada */}
+        {/* BARRA DE PESQUISA */}
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar no cardápio..."
+              value={termoBusca}
+              onChange={(e) => setTermoBusca(e.target.value)}
+              className="w-full bg-gray-100 border border-gray-300 text-gray-800 font-medium pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Barra de Categorias */}
         <div className="flex overflow-x-auto p-3 gap-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {CATEGORIAS.map((cat) => (
             <button
               key={cat}
-              onClick={() => setCategoriaAtiva(cat)}
+              onClick={() => {
+                setCategoriaAtiva(cat);
+                setTermoBusca(''); // Limpa a pesquisa ao trocar de categoria
+              }}
               className={`whitespace-nowrap px-5 py-2 rounded-full font-bold text-sm transition-colors
-                ${categoriaAtiva === cat ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
+                ${categoriaAtiva === cat && termoBusca === '' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
             >
               {cat}
             </button>
@@ -491,41 +518,79 @@ export default function GarcomApp() {
             </div>
           );
         })}
+        {/* Mensagem de quando a busca não encontra nada */}
+        {produtosFiltrados.length === 0 && (
+          <p className="text-center text-gray-500 font-medium py-10">Nenhum produto encontrado.</p>
+        )}
       </div>
 
-      {/* MODAL DE ACOMPANHAMENTOS */}
+      {/* MODAL DE ACOMPANHAMENTOS E PONTO DA CARNE */}
       {modalAcomp && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg max-h-[85vh] rounded-t-3xl shadow-2xl flex flex-col">
             <div className="p-5 border-b border-gray-200">
               <div className="flex justify-between items-center mb-1">
-                <h3 className="font-black text-xl text-gray-900">Escolha 4 Opções</h3>
+                <h3 className="font-black text-xl text-gray-900">Personalizar Pedido</h3>
                 <button onClick={() => setModalAcomp(null)} className="p-2 bg-gray-200 rounded-full text-gray-800"><XCircle className="w-5 h-5" /></button>
               </div>
               <p className="text-base font-bold text-orange-700">{modalAcomp.produto.nome} {modalAcomp.rotulo && `(${modalAcomp.rotulo})`}</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-100">
-              {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
-                const qtdSelecionada = selecaoAcomp[acomp] || 0;
-                return (
-                  <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                    <span className="font-extrabold text-gray-900">{acomp}</span>
-                    <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
-                      <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
-                      <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
-                      <button onClick={() => incrementarAcomp(acomp)} className={`p-1.5 rounded ${totalAcompSelecionados < 4 ? 'bg-white text-gray-900 shadow-sm active:scale-95' : 'text-gray-400'}`} disabled={totalAcompSelecionados >= 4}><Plus className="w-5 h-5" /></button>
-                    </div>
+            
+            <div className="flex-1 overflow-y-auto bg-gray-100">
+              
+              {/* OBRIGATÓRIO: PONTO DA CARNE */}
+              {modalAcomp.produto.categoria === 'Carnes Principais' && (
+                <div className="p-5 bg-white mb-2 border-b border-gray-200 shadow-sm">
+                  <h4 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-base">
+                    <Flame className="w-5 h-5 text-orange-600" /> Obrigatório: Ponto da Carne
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {PONTOS_CARNE.map(ponto => (
+                      <button
+                        key={ponto}
+                        onClick={() => setPontoCarne(ponto)}
+                        className={`px-4 py-2.5 rounded-xl font-bold text-sm border-2 transition-colors active:scale-95
+                          ${pontoCarne === ponto ? 'bg-orange-600 text-white border-orange-600 shadow-md' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'}`}
+                      >
+                        {ponto}
+                      </button>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* OPÇÕES DE ACOMPANHAMENTOS */}
+              <div className="p-4 space-y-2">
+                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (Até 4 opções)</h4>
+                {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
+                  const qtdSelecionada = selecaoAcomp[acomp] || 0;
+                  return (
+                    <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                      <span className="font-extrabold text-gray-900">{acomp}</span>
+                      <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
+                        <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
+                        <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
+                        <button onClick={() => incrementarAcomp(acomp)} className={`p-1.5 rounded ${totalAcompSelecionados < 4 ? 'bg-white text-gray-900 shadow-sm active:scale-95' : 'text-gray-400'}`} disabled={totalAcompSelecionados >= 4}><Plus className="w-5 h-5" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
             <div className="p-5 bg-white border-t border-gray-200">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-gray-700 font-bold">Selecionados:</span>
+                <span className="text-gray-700 font-bold">Acomps. Selecionados:</span>
                 <span className={`font-black text-xl ${totalAcompSelecionados === 4 ? 'text-green-600' : 'text-orange-600'}`}>{totalAcompSelecionados} / 4</span>
               </div>
-              <button onClick={confirmarModalAcomp} disabled={totalAcompSelecionados === 0} className={`w-full font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all ${totalAcompSelecionados > 0 ? 'bg-orange-600 text-white active:scale-[0.98]' : 'bg-gray-300 text-gray-600'}`}>
-                <ListPlus className="w-5 h-5" /> Confirmar Acompanhamentos
+              
+              <button 
+                onClick={confirmarModalAcomp} 
+                disabled={modalAcomp.produto.categoria === 'Carnes Principais' && pontoCarne === ''} 
+                className={`w-full font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all 
+                  ${(modalAcomp.produto.categoria !== 'Carnes Principais' || pontoCarne !== '') ? 'bg-orange-600 text-white active:scale-[0.98]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+              >
+                <ListPlus className="w-5 h-5" /> Adicionar ao Pedido
               </button>
             </div>
           </div>
@@ -550,7 +615,7 @@ export default function GarcomApp() {
               {carrinho.length > 0 && (
                 <div>
                   <h4 className="text-sm font-black text-orange-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4" /> Novo Pedido (A Enviar)
+                    <ShoppingCart className="w-4 h-4" /> Novo Pedido a Enviar
                   </h4>
                   <div className="space-y-3">
                     {carrinho.map((item) => (
@@ -560,8 +625,8 @@ export default function GarcomApp() {
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
                               <button onClick={() => alterarQuantidadeUID(item.uid, -1)} className="p-1 bg-white rounded shadow-sm text-black"><Minus className="w-4 h-4" /></button>
-<span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
-<button onClick={() => alterarQuantidadeUID(item.uid, 1)} className="p-1 bg-white rounded shadow-sm text-black"><Plus className="w-4 h-4" /></button>
+                              <span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
+                              <button onClick={() => alterarQuantidadeUID(item.uid, 1)} className="p-1 bg-white rounded shadow-sm text-black"><Plus className="w-4 h-4" /></button>
                             </div>
                             <button onClick={() => removerItemInteiroCarrinho(item.uid)} className="p-1.5 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg border border-red-200">
                               <Trash2 className="w-5 h-5" />
@@ -581,7 +646,7 @@ export default function GarcomApp() {
                     ))}
                   </div>
                   <button onClick={enviarParaCozinhaEBar} className="w-full mt-4 bg-orange-600 text-white font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
-                    <Send className="w-5 h-5" /> Enviar Novos Itens (R$ {totalCarrinho.toFixed(2)})
+                    <Send className="w-5 h-5" /> Enviar para Produção (R$ {totalCarrinho.toFixed(2)})
                   </button>
                 </div>
               )}
