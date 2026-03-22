@@ -289,7 +289,17 @@ export default function GarcomApp() {
   if (mesaAtiva === null) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
-        <div className="w-full max-w-md mb-8 text-center mt-6">
+        
+        {/* === BOTÃO DE TESTE GIGANTE E VERMELHO === */}
+        <a 
+          href="/teste" 
+          className="w-full max-w-md bg-red-600 text-white text-center font-black text-xl py-5 rounded-2xl shadow-xl mb-6 mt-4 cursor-pointer"
+        >
+          TESTE DE CLIQUE CELULAR
+        </a>
+        {/* ======================================= */}
+
+        <div className="w-full max-w-md mb-8 text-center">
           <UtensilsCrossed className="w-12 h-12 mx-auto text-orange-600 mb-4" />
           <h1 className="text-3xl font-black text-gray-900">Salão Principal</h1>
           <p className="text-gray-700 font-medium mt-1">Selecione a mesa para iniciar o pedido</p>
