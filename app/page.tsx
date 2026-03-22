@@ -46,7 +46,7 @@ export default function GarcomApp() {
   // --- LÓGICA DE NAVEGAÇÃO ---
   const abrirMesa = (numeroMesa: number) => {
     setMesaAtiva(numeroMesa);
-    setCarrinho([]); 
+    setCarrinho([]);
   };
 
   const voltarParaMesas = () => {
@@ -63,15 +63,14 @@ export default function GarcomApp() {
         novo[existenteIndex] = { ...novo[existenteIndex], quantidade: novo[existenteIndex].quantidade + 1 };
         return novo;
       }
-      
-      return [...prev, { 
+      return [...prev, {
         uid: Date.now().toString() + Math.random().toString(),
-        idProduto: idFinal, 
-        nome: rotulo ? `${produto.nome} (${rotulo})` : produto.nome, 
-        preco: preco, 
-        quantidade: 1, 
-        observacao: observacao, 
-        setor: produto.setor 
+        idProduto: idFinal,
+        nome: rotulo ? `${produto.nome} (${rotulo})` : produto.nome,
+        preco: preco,
+        quantidade: 1,
+        observacao: observacao,
+        setor: produto.setor
       }];
     });
   };
@@ -80,7 +79,6 @@ export default function GarcomApp() {
     setCarrinho((prev) => {
       const itensDesseTipo = prev.filter(i => i.idProduto === idFinal);
       if (itensDesseTipo.length === 0) return prev;
-      
       const ultimoAdicionado = itensDesseTipo[itensDesseTipo.length - 1];
       if (ultimoAdicionado.quantidade > 1) {
         return prev.map(i => i.uid === ultimoAdicionado.uid ? { ...i, quantidade: i.quantidade - 1 } : i);
@@ -94,7 +92,7 @@ export default function GarcomApp() {
     setCarrinho((prev) => prev.map(item => {
       if (item.uid === uid) return { ...item, quantidade: item.quantidade + delta };
       return item;
-    }).filter(item => item.quantidade > 0)); 
+    }).filter(item => item.quantidade > 0));
   };
 
   const removerItemInteiroCarrinho = (uid: string) => {
@@ -144,44 +142,32 @@ export default function GarcomApp() {
 
   const confirmarModalAcomp = () => {
     if (!modalAcomp) return;
-    
     const partesObs = Object.entries(selecaoAcomp)
       .filter(([_, qtd]) => qtd > 0)
       .map(([nome, qtd]) => qtd > 1 ? `${qtd}x ${nome}` : nome);
-    
     const textoObservacao = partesObs.join(', ');
-
     const idFinal = modalAcomp.idOpcao ? `${modalAcomp.produto.id}-${modalAcomp.idOpcao}` : modalAcomp.produto.id;
     adicionarAoCarrinho(modalAcomp.produto, idFinal, modalAcomp.rotulo, modalAcomp.preco, textoObservacao);
-    
     setModalAcomp(null);
   };
 
   // --- LÓGICA DA COMANDA ---
   const alterarQuantidadeComanda = (uid: string, delta: number) => {
     if (!mesaAtiva) return;
-    
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
       const itemParaAlterar = comandaAtual.find(i => i.uid === uid);
-      
       if (!itemParaAlterar) return prev;
-
       const novaQuantidade = itemParaAlterar.quantidade + delta;
-
       if (novaQuantidade <= 0) {
-        if(window.confirm(`Deseja cancelar totalmente ${itemParaAlterar.nome}? Um aviso será enviado para a produção.`)) {
+        if (window.confirm(`Deseja cancelar totalmente ${itemParaAlterar.nome}? Um aviso será enviado para a produção.`)) {
           if (itemParaAlterar.setor === 'cozinha') alert(`⚠️ AVISO PARA A COZINHA: Cancelar preparo de ${itemParaAlterar.nome} da Mesa ${mesaAtiva}!`);
           else alert(`⚠️ AVISO PARA O BAR: Cancelar ${itemParaAlterar.nome} da Mesa ${mesaAtiva}!`);
           return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
         }
         return prev;
       }
-
-      return {
-        ...prev,
-        [mesaAtiva]: comandaAtual.map(i => i.uid === uid ? { ...i, quantidade: novaQuantidade } : i)
-      };
+      return { ...prev, [mesaAtiva]: comandaAtual.map(i => i.uid === uid ? { ...i, quantidade: novaQuantidade } : i) };
     });
   };
 
@@ -190,7 +176,6 @@ export default function GarcomApp() {
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
       const itemParaRemover = comandaAtual.find(i => i.uid === uid);
-      
       if (itemParaRemover) {
         if (itemParaRemover.setor === 'cozinha') alert(`⚠️ AVISO PARA A COZINHA: Cancelar preparo de ${itemParaRemover.nome} da Mesa ${mesaAtiva}!`);
         else alert(`⚠️ AVISO PARA O BAR: Cancelar ${itemParaRemover.nome} da Mesa ${mesaAtiva}!`);
@@ -202,38 +187,30 @@ export default function GarcomApp() {
   // --- ENVIO DO PEDIDO ---
   const enviarParaCozinhaEBar = async () => {
     if (carrinho.length === 0 || !mesaAtiva) return;
-
     const itensCozinha = carrinho.filter(item => item.setor === 'cozinha');
-
     if (itensCozinha.length > 0) {
       const { error } = await supabase
         .from('pedidos')
-        .insert([
-          { mesa: mesaAtiva, status: 'pendente', itens: itensCozinha }
-        ]);
-
+        .insert([{ mesa: mesaAtiva, status: 'pendente', itens: itensCozinha }]);
       if (error) {
         console.error("Erro ao enviar para o Supabase:", error);
         alert("Erro na conexão! O pedido não foi enviado para a cozinha.");
         return;
       }
     }
-
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
       const novaComanda = [...comandaAtual];
-      
       carrinho.forEach(itemCarrinho => {
         const indexExistente = novaComanda.findIndex(i => i.idProduto === itemCarrinho.idProduto && i.observacao === itemCarrinho.observacao);
         if (indexExistente >= 0) {
-            novaComanda[indexExistente] = { ...novaComanda[indexExistente], quantidade: novaComanda[indexExistente].quantidade + itemCarrinho.quantidade };
+          novaComanda[indexExistente] = { ...novaComanda[indexExistente], quantidade: novaComanda[indexExistente].quantidade + itemCarrinho.quantidade };
         } else {
-            novaComanda.push(itemCarrinho);
+          novaComanda.push(itemCarrinho);
         }
       });
       return { ...prev, [mesaAtiva]: novaComanda };
     });
-
     setCarrinho([]);
     alert(`Pedido da Mesa ${mesaAtiva} enviado com sucesso!`);
     setModalCarrinhoAberto(false);
@@ -245,27 +222,23 @@ export default function GarcomApp() {
   const totalComanda = comandaDaMesaAtiva.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
   const totalGeral = totalCarrinho + totalComanda;
   const qtdItensCarrinho = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
-
   const subtotalConta = totalComanda;
   const valorTaxa = incluirTaxa ? subtotalConta * 0.1 : 0;
   const totalFinalConta = subtotalConta + valorTaxa;
 
   const confirmarFechamentoConta = () => {
     if (!mesaAtiva) return;
-    
     setPagamentosPorMesa(prev => ({ ...prev, [mesaAtiva!]: formaPagamentoAtual }));
     setMesasAguardandoPagamento(prev => !prev.includes(mesaAtiva!) ? [...prev, mesaAtiva!] : prev);
     alert(`Conta da Mesa ${mesaAtiva} enviada para o Caixa!`);
-    
     setModalContaAberto(false);
     setModalCarrinhoAberto(false);
     setMesaAtiva(null);
   };
 
   const liberarMesaCaixa = async (numero: number, e: React.MouseEvent) => {
-    e.stopPropagation(); 
-    if(window.confirm(`Confirmar pagamento e liberação da Mesa ${numero}?`)) {
-      
+    e.stopPropagation();
+    if (window.confirm(`Confirmar pagamento e liberação da Mesa ${numero}?`)) {
       try {
         const itensConsumidos = comandasPorMesa[numero] || [];
         const subtotal = itensConsumidos.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
@@ -278,27 +251,20 @@ export default function GarcomApp() {
           valor_total: totalFinal,
           forma_pagamento: pagamentoEscolhido
         }]);
-
         if (erroHistorico) throw erroHistorico;
 
         try {
           const nomesConsumidos = itensConsumidos.map((item: any) => item.nome);
-          
           const { data: estoqueAtual, error: erroBusca } = await supabase
             .from('estoque')
             .select('id, nome_produto, quantidade_atual')
             .in('nome_produto', nomesConsumidos);
-
           if (!erroBusca && estoqueAtual) {
             for (const itemConsumido of itensConsumidos) {
               const itemNoEstoque = estoqueAtual.find(e => e.nome_produto === itemConsumido.nome);
-              
               if (itemNoEstoque) {
                 const novaQuantidade = Math.max(0, Number(itemNoEstoque.quantidade_atual) - itemConsumido.quantidade);
-                await supabase
-                  .from('estoque')
-                  .update({ quantidade_atual: novaQuantidade })
-                  .eq('id', itemNoEstoque.id);
+                await supabase.from('estoque').update({ quantidade_atual: novaQuantidade }).eq('id', itemNoEstoque.id);
               }
             }
           }
@@ -307,19 +273,9 @@ export default function GarcomApp() {
         }
 
         await supabase.from('pedidos').update({ status: 'finalizado' }).eq('mesa', numero);
-
-        setComandasPorMesa(prev => {
-          const novo = {...prev};
-          delete novo[numero];
-          return novo;
-        });
+        setComandasPorMesa(prev => { const novo = { ...prev }; delete novo[numero]; return novo; });
         setMesasAguardandoPagamento(prev => prev.filter(m => m !== numero));
-        setPagamentosPorMesa(prev => {
-          const novo = {...prev};
-          delete novo[numero];
-          return novo;
-        });
-
+        setPagamentosPorMesa(prev => { const novo = { ...prev }; delete novo[numero]; return novo; });
       } catch (error) {
         console.error("Erro ao fechar a mesa:", error);
         alert("Erro ao salvar histórico. Tente novamente.");
@@ -328,7 +284,7 @@ export default function GarcomApp() {
   };
 
   // ==========================================
-  // TELA 1: SELEÇÃO DE MESAS — CORRIGIDA
+  // TELA 1: SELEÇÃO DE MESAS
   // ==========================================
   if (mesaAtiva === null) {
     return (
@@ -346,51 +302,46 @@ export default function GarcomApp() {
             const aguardandoPagamento = mesasAguardandoPagamento.includes(numero);
 
             return (
-              // FIX: Trocado <button> por <div role="button"> para permitir
-              // um <button> filho ("Liberar Mesa") sem violar o HTML.
-              // Adicionado style touchAction para remover o delay de 300ms no mobile.
-              <div
-                key={numero}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (!aguardandoPagamento) abrirMesa(numero);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    if (!aguardandoPagamento) abrirMesa(numero);
-                  }
-                }}
-                style={{ touchAction: 'manipulation' }}
-                className={`w-full cursor-pointer select-none border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm relative
-                  ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
-                    mesaOcupada ? 'bg-orange-50 border-orange-300 active:scale-95' : 
-                    'bg-white border-gray-300 active:scale-95'}`}
-              >
-                {mesaOcupada && !aguardandoPagamento && (
-                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse pointer-events-none" />
-                )}
-                
-                <span className={`pointer-events-none text-sm font-bold uppercase tracking-widest mb-1 
-                  ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
-                  Mesa
-                </span>
-                <span className={`pointer-events-none text-4xl font-black 
-                  ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
-                  {numero}
-                </span>
+              // FIX DEFINITIVO: <div> wrapper com position relative contendo
+              // dois <button> IRMÃOS — nunca mais botão dentro de botão.
+              // iOS Safari dispara clicks corretamente em <button> nativo.
+              <div key={numero} className="relative">
 
+                {/* BOTÃO PRINCIPAL — <button> nativo, sem elementos interativos filhos */}
+                <button
+                  type="button"
+                  disabled={aguardandoPagamento}
+                  onClick={() => abrirMesa(numero)}
+                  style={{ touchAction: 'manipulation' }}
+                  className={`w-full border-2 rounded-2xl flex flex-col items-center justify-center shadow-sm
+                    ${aguardandoPagamento
+                      ? 'bg-blue-50 border-blue-300 cursor-default py-8 pb-14'
+                      : mesaOcupada
+                        ? 'bg-orange-50 border-orange-300 active:scale-95 cursor-pointer py-8'
+                        : 'bg-white border-gray-300 active:scale-95 cursor-pointer py-8'
+                    }`}
+                >
+                  {mesaOcupada && !aguardandoPagamento && (
+                    <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse" />
+                  )}
+
+                  <span className={`text-sm font-bold uppercase tracking-widest mb-1
+                    ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
+                    Mesa
+                  </span>
+                  <span className={`text-4xl font-black
+                    ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
+                    {numero}
+                  </span>
+                </button>
+
+                {/* "LIBERAR MESA" — IRMÃO do botão acima, posicionado por cima via absolute */}
                 {aguardandoPagamento && (
-                  // FIX: Trocado <div onClick> por <button type="button">,
-                  // que é semanticamente válido dentro de um <div role="button">.
                   <button
                     type="button"
                     style={{ touchAction: 'manipulation' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      liberarMesaCaixa(numero, e);
-                    }}
-                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-blue-700 active:scale-95 shadow-sm"
+                    onClick={(e) => liberarMesaCaixa(numero, e)}
+                    className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full active:scale-95 shadow-sm whitespace-nowrap"
                   >
                     Liberar Mesa
                   </button>
@@ -412,7 +363,9 @@ export default function GarcomApp() {
     <div className="min-h-screen bg-gray-50 pb-28">
       <div className="bg-white sticky top-0 z-10 shadow-sm border-b border-gray-200">
         <div className="flex items-center justify-between p-4">
-          <button onClick={voltarParaMesas} className="p-2 text-gray-800 hover:bg-gray-100 rounded-full"><ChevronLeft className="w-6 h-6" /></button>
+          <button onClick={voltarParaMesas} className="p-2 text-gray-800 hover:bg-gray-100 rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </button>
           <div className="text-center">
             <h2 className="text-xl font-bold text-gray-900">Mesa {mesaAtiva}</h2>
             {totalComanda > 0 && <p className="text-sm text-orange-700 font-bold">Comanda: R$ {totalComanda.toFixed(2)}</p>}
@@ -441,18 +394,16 @@ export default function GarcomApp() {
 
       <div className="p-4 space-y-4 max-w-lg mx-auto">
         {produtosFiltrados.map((produto) => {
-          
+
           if (produto.opcoesTamanho) {
             return (
               <div key={produto.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="font-extrabold text-gray-900">{produto.nome}</h3>
                 <p className="text-sm text-orange-700 font-semibold mt-1">{produto.descricao}</p>
-                
                 <div className="mt-3 space-y-2 border-t border-gray-200 pt-3">
                   {produto.opcoesTamanho.map(opcao => {
                     const idFinal = `${produto.id}-${opcao.idOpcao}`;
-                    const quantidade = carrinho.filter(c => c.idProduto === idFinal).reduce((a,b) => a + b.quantidade, 0);
-
+                    const quantidade = carrinho.filter(c => c.idProduto === idFinal).reduce((a, b) => a + b.quantidade, 0);
                     return (
                       <div key={opcao.idOpcao} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border border-gray-200">
                         <div>
@@ -460,26 +411,26 @@ export default function GarcomApp() {
                           <p className="font-bold text-gray-700 text-sm mt-0.5">R$ {opcao.preco.toFixed(2)}</p>
                         </div>
                         <div className="flex items-center gap-3 bg-white rounded-lg p-1 shadow-sm border border-gray-300">
-                          <button 
+                          <button
                             onClick={() => handleBotaoMenos(produto, opcao.idOpcao)}
                             className={`p-1.5 rounded ${quantidade > 0 ? 'text-gray-900' : 'text-gray-400'}`}
                             disabled={quantidade === 0}
                           ><Minus className="w-5 h-5" /></button>
                           <span className="font-black w-6 text-center text-black text-lg">{quantidade}</span>
-                          <button 
+                          <button
                             onClick={() => handleBotaoMais(produto, opcao.idOpcao, opcao.rotulo, opcao.preco)}
                             className="p-1.5 text-gray-900 rounded active:scale-95"
                           ><Plus className="w-5 h-5" /></button>
                         </div>
                       </div>
-                    )
+                    );
                   })}
                 </div>
               </div>
             );
           }
 
-          const quantidade = carrinho.filter(c => c.idProduto === produto.id).reduce((a,b) => a + b.quantidade, 0);
+          const quantidade = carrinho.filter(c => c.idProduto === produto.id).reduce((a, b) => a + b.quantidade, 0);
 
           return (
             <div key={produto.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex justify-between items-center gap-4">
@@ -488,15 +439,14 @@ export default function GarcomApp() {
                 {produto.descricao && <p className="text-sm text-gray-700 font-medium mt-1 line-clamp-2">{produto.descricao}</p>}
                 <p className="font-bold text-gray-900 mt-2 text-base">R$ {produto.preco.toFixed(2)}</p>
               </div>
-
               <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-1 border border-gray-300 shadow-sm">
-                <button 
+                <button
                   onClick={() => handleBotaoMenos(produto)}
                   className={`p-2 rounded-lg ${quantidade > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                   disabled={quantidade === 0}
                 ><Minus className="w-5 h-5" /></button>
                 <span className="font-black w-6 text-center text-black text-lg">{quantidade}</span>
-                <button 
+                <button
                   onClick={() => handleBotaoMais(produto)}
                   className="p-2 bg-white text-gray-900 rounded-lg shadow-sm active:scale-95 transition-transform"
                 ><Plus className="w-5 h-5" /></button>
@@ -506,13 +456,10 @@ export default function GarcomApp() {
         })}
       </div>
 
-      {/* ==========================================
-          MODAL DE ESCOLHA DE ACOMPANHAMENTOS
-          ========================================== */}
+      {/* MODAL DE ACOMPANHAMENTOS */}
       {modalAcomp && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg max-h-[85vh] rounded-t-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-200">
-            
             <div className="p-5 border-b border-gray-200">
               <div className="flex justify-between items-center mb-1">
                 <h3 className="font-black text-xl text-gray-900">Escolha 4 Opções</h3>
@@ -528,20 +475,20 @@ export default function GarcomApp() {
                   <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
                     <span className="font-extrabold text-gray-900">{acomp}</span>
                     <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
-                      <button 
+                      <button
                         onClick={() => decrementarAcomp(acomp)}
                         className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}
                         disabled={qtdSelecionada === 0}
                       ><Minus className="w-5 h-5" /></button>
                       <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
-                      <button 
+                      <button
                         onClick={() => incrementarAcomp(acomp)}
                         className={`p-1.5 rounded ${totalAcompSelecionados < 4 ? 'bg-white text-gray-900 shadow-sm active:scale-95' : 'text-gray-400'}`}
                         disabled={totalAcompSelecionados >= 4}
                       ><Plus className="w-5 h-5" /></button>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
 
@@ -552,7 +499,7 @@ export default function GarcomApp() {
                   {totalAcompSelecionados} / 4
                 </span>
               </div>
-              <button 
+              <button
                 onClick={confirmarModalAcomp}
                 disabled={totalAcompSelecionados === 0}
                 className={`w-full font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all
@@ -561,18 +508,14 @@ export default function GarcomApp() {
                 <ListPlus className="w-5 h-5" /> Confirmar Acompanhamentos
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* ==========================================
-          MODAL DO CARRINHO E COMANDA
-          ========================================== */}
+      {/* MODAL DO CARRINHO E COMANDA */}
       {modalCarrinhoAberto && (
         <div className="fixed inset-0 z-50 flex justify-end flex-col bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-h-[90vh] rounded-t-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-200">
-            
             <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-100 rounded-t-3xl">
               <div>
                 <h3 className="font-black text-2xl text-gray-900">Resumo da Mesa {mesaAtiva}</h3>
@@ -584,7 +527,6 @@ export default function GarcomApp() {
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 space-y-8 bg-gray-50">
-              
               {carrinho.length > 0 && (
                 <div>
                   <h4 className="text-sm font-black text-orange-700 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -595,29 +537,25 @@ export default function GarcomApp() {
                       <div key={item.uid} className="bg-white p-4 rounded-2xl border-2 border-orange-200 shadow-sm">
                         <div className="flex justify-between items-start mb-2">
                           <span className="font-bold text-gray-900 flex-1 pr-2 text-base">{item.nome}</span>
-                          
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
                               <button onClick={() => alterarQuantidadeUID(item.uid, -1)} className="p-1 bg-white rounded shadow-sm"><Minus className="w-4 h-4" /></button>
                               <span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
                               <button onClick={() => alterarQuantidadeUID(item.uid, 1)} className="p-1 bg-white rounded shadow-sm"><Plus className="w-4 h-4" /></button>
                             </div>
-                            <button 
-                              onClick={() => removerItemInteiroCarrinho(item.uid)} 
+                            <button
+                              onClick={() => removerItemInteiroCarrinho(item.uid)}
                               className="p-1.5 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg transition-colors border border-red-200"
-                              title="Remover item"
                             >
                               <Trash2 className="w-5 h-5" />
                             </button>
                           </div>
-                          
                         </div>
-                        
                         <div className="flex flex-col gap-2 mt-2">
                           <div className="flex items-start gap-2 bg-gray-50 rounded-lg p-2 border border-gray-200">
                             <MessageSquare className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-                            <textarea 
-                              placeholder="Observações adicionais..." 
+                            <textarea
+                              placeholder="Observações adicionais..."
                               className="w-full text-sm font-medium outline-none text-gray-800 bg-transparent resize-none h-10"
                               value={item.observacao}
                               onChange={(e) => atualizarObservacaoUID(item.uid, e.target.value)}
@@ -630,8 +568,7 @@ export default function GarcomApp() {
                       </div>
                     ))}
                   </div>
-
-                  <button 
+                  <button
                     onClick={enviarParaCozinhaEBar}
                     className="w-full mt-4 bg-orange-600 text-white font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
                   >
@@ -644,7 +581,6 @@ export default function GarcomApp() {
                 <h4 className="text-sm font-black text-green-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" /> Já na Comanda
                 </h4>
-                
                 {comandaDaMesaAtiva.length === 0 ? (
                   <p className="text-base font-medium text-gray-500 italic">Nenhum item confirmado ainda.</p>
                 ) : (
@@ -658,17 +594,15 @@ export default function GarcomApp() {
                           </div>
                           <span className="font-black text-gray-900 text-base ml-2 whitespace-nowrap">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
                         </div>
-                        
                         <div className="flex justify-between items-center border-t border-gray-100 pt-3">
                           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
                             <button onClick={() => alterarQuantidadeComanda(item.uid, -1)} className="p-1 bg-white rounded shadow-sm text-gray-900"><Minus className="w-4 h-4" /></button>
                             <span className="font-black w-6 text-center text-sm">{item.quantidade}</span>
                             <button onClick={() => alterarQuantidadeComanda(item.uid, 1)} className="p-1 bg-white rounded shadow-sm text-gray-900"><Plus className="w-4 h-4" /></button>
                           </div>
-                          
-                          <button 
+                          <button
                             onClick={() => {
-                              if(window.confirm(`Deseja cancelar totalmente ${item.nome}? Um aviso será enviado para a produção.`)) {
+                              if (window.confirm(`Deseja cancelar totalmente ${item.nome}? Um aviso será enviado para a produção.`)) {
                                 removerItemInteiroComanda(item.uid);
                               }
                             }}
@@ -683,7 +617,7 @@ export default function GarcomApp() {
 
               {comandaDaMesaAtiva.length > 0 && carrinho.length === 0 && (
                 <div className="pt-4 border-t border-gray-200 mt-6">
-                  <button 
+                  <button
                     onClick={() => setModalContaAberto(true)}
                     className="w-full bg-gray-900 text-white font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"
                   >
@@ -696,10 +630,10 @@ export default function GarcomApp() {
         </div>
       )}
 
-      {/* BOTÃO FLUTUANTE DE CARRINHO */}
+      {/* BOTÃO FLUTUANTE */}
       {!modalCarrinhoAberto && !modalAcomp && totalGeral > 0 && (
         <div className="fixed bottom-6 left-6 right-6 z-20">
-          <button 
+          <button
             onClick={() => setModalCarrinhoAberto(true)}
             className={`w-full text-white rounded-2xl p-4 flex items-center justify-between shadow-xl active:scale-[0.98] transition-all
               ${qtdItensCarrinho > 0 ? 'bg-orange-600 shadow-orange-600/30' : 'bg-gray-900 shadow-gray-900/30'}`}
@@ -720,13 +654,10 @@ export default function GarcomApp() {
         </div>
       )}
 
-      {/* ==========================================
-          MODAL DE RESUMO DA CONTA (FECHAMENTO)
-          ========================================== */}
+      {/* MODAL DE FECHAMENTO DE CONTA */}
       {modalContaAberto && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-md max-h-[90vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
-            
             <div className="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
               <h3 className="font-black text-2xl text-gray-900">Conta Mesa {mesaAtiva}</h3>
               <button onClick={() => setModalContaAberto(false)} className="p-2 bg-gray-200 rounded-full text-gray-800 hover:bg-gray-300 transition-colors"><XCircle className="w-5 h-5" /></button>
@@ -734,7 +665,6 @@ export default function GarcomApp() {
 
             <div className="p-5 overflow-y-auto flex-1 space-y-3 bg-white hide-scrollbar">
               <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Itens Consumidos</h4>
-              
               {comandaDaMesaAtiva.map(item => (
                 <div key={item.uid} className="flex justify-between items-center text-gray-800 border-b border-gray-100 pb-2">
                   <span className="font-bold text-sm">{item.quantidade}x {item.nome}</span>
@@ -744,14 +674,13 @@ export default function GarcomApp() {
             </div>
 
             <div className="p-5 bg-gray-50 border-t border-gray-200 space-y-4">
-              
               <div className="flex justify-between items-center text-gray-600">
                 <span className="font-bold">Subtotal</span>
                 <span className="font-black">R$ {subtotalConta.toFixed(2)}</span>
               </div>
-              
-              <div 
-                className="flex justify-between items-center text-gray-900 bg-white p-3 rounded-xl border border-gray-200 shadow-sm cursor-pointer select-none active:scale-[0.98] transition-transform" 
+
+              <div
+                className="flex justify-between items-center text-gray-900 bg-white p-3 rounded-xl border border-gray-200 shadow-sm cursor-pointer select-none active:scale-[0.98] transition-transform"
                 onClick={() => setIncluirTaxa(!incluirTaxa)}
               >
                 <div className="flex items-center gap-3">
@@ -765,7 +694,7 @@ export default function GarcomApp() {
 
               <div className="pt-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Forma de Pagamento</label>
-                <select 
+                <select
                   value={formaPagamentoAtual}
                   onChange={(e) => setFormaPagamentoAtual(e.target.value)}
                   className="w-full bg-white border border-gray-300 text-gray-900 font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
@@ -782,18 +711,17 @@ export default function GarcomApp() {
                 <span className="font-black text-3xl text-orange-700">R$ {totalFinalConta.toFixed(2)}</span>
               </div>
 
-              <button 
+              <button
                 onClick={confirmarFechamentoConta}
                 className="w-full mt-2 bg-orange-600 text-white font-black text-lg py-4 rounded-xl shadow-lg hover:bg-orange-500 active:scale-[0.98] transition-transform"
               >
                 Imprimir e Encerrar
               </button>
-              
             </div>
-
           </div>
         </div>
       )}
+
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
