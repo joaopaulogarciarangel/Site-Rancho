@@ -23,10 +23,36 @@ interface ItemPedido {
 
 export default function GarcomApp() {
   const [montado, setMontado] = useState(false);
+  const [erroDebug, setErroDebug] = useState<string | null>(null);
 
   useEffect(() => {
-    setMontado(true);
+    try {
+      console.log("Tentando montar componente...");
+      // Verifica se as variáveis de ambiente chegaram no celular
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!url) {
+        setErroDebug("ERRO: Variáveis de ambiente não encontradas na Vercel.");
+      }
+      setMontado(true);
+    } catch (e: any) {
+      setErroDebug("Erro crítico de JS: " + e.message);
+    }
   }, []);
+
+  // Se houver erro de debug, mostra na tela vermelha
+  if (erroDebug) {
+    return (
+      <div className="p-10 bg-red-100 text-red-700 min-h-screen">
+        <h1 className="font-bold text-xl">Erro de Diagnóstico:</h1>
+        <p className="mt-4">{erroDebug}</p>
+        <p className="text-sm mt-4">Verifique as Environment Variables na Vercel.</p>
+      </div>
+    );
+  }
+
+  if (!montado) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold">Iniciando sistema...</div>;
+  
+  // ... resto do seu código
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
