@@ -302,48 +302,41 @@ export default function GarcomApp() {
             const aguardandoPagamento = mesasAguardandoPagamento.includes(numero);
 
             return (
-              // FIX DEFINITIVO: <div> wrapper com position relative contendo
-              // dois <button> IRMÃOS — nunca mais botão dentro de botão.
-              // iOS Safari dispara clicks corretamente em <button> nativo.
-              <div key={numero} className="relative">
+              <div
+                key={numero}
+                onClick={() => {
+                  if (!aguardandoPagamento) abrirMesa(numero);
+                }}
+                style={{ cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
+                className={`relative border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all select-none
+                  ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
+                    mesaOcupada ? 'bg-orange-50 border-orange-300 active:scale-95' : 
+                    'bg-white border-gray-300 active:scale-95'}`}
+              >
+                {mesaOcupada && !aguardandoPagamento && (
+                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse pointer-events-none" />
+                )}
 
-                {/* BOTÃO PRINCIPAL — <button> nativo, sem elementos interativos filhos */}
-                <button
-                  type="button"
-                  disabled={aguardandoPagamento}
-                  onClick={() => abrirMesa(numero)}
-                  style={{ touchAction: 'manipulation' }}
-                  className={`w-full border-2 rounded-2xl flex flex-col items-center justify-center shadow-sm
-                    ${aguardandoPagamento
-                      ? 'bg-blue-50 border-blue-300 cursor-default py-8 pb-14'
-                      : mesaOcupada
-                        ? 'bg-orange-50 border-orange-300 active:scale-95 cursor-pointer py-8'
-                        : 'bg-white border-gray-300 active:scale-95 cursor-pointer py-8'
-                    }`}
-                >
-                  {mesaOcupada && !aguardandoPagamento && (
-                    <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse" />
-                  )}
+                <span className={`pointer-events-none text-sm font-bold uppercase tracking-widest mb-1 
+                  ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
+                  Mesa
+                </span>
+                
+                <span className={`pointer-events-none text-4xl font-black 
+                  ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
+                  {numero}
+                </span>
 
-                  <span className={`text-sm font-bold uppercase tracking-widest mb-1
-                    ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
-                    Mesa
-                  </span>
-                  <span className={`text-4xl font-black
-                    ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
-                    {numero}
-                  </span>
-                </button>
-
-                {/* "LIBERAR MESA" — IRMÃO do botão acima, posicionado por cima via absolute */}
                 {aguardandoPagamento && (
-                  <button
-                    type="button"
-                    style={{ touchAction: 'manipulation' }}
-                    onClick={(e) => liberarMesaCaixa(numero, e)}
-                    className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full active:scale-95 shadow-sm whitespace-nowrap"
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      liberarMesaCaixa(numero, e);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-blue-700 active:scale-95 shadow-sm"
                   >
-                    Liberar Mesa
+                    Liberar
                   </button>
                 )}
               </div>
