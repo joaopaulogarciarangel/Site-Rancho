@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { PRODUTOS } from '@/data/cardapio'; 
 import { 
   LogOut, LayoutDashboard, Package, TrendingUp, CloudRain, 
-  CalendarClock, CreditCard, Download, Trash2, Plus, Minus, 
-  AlertTriangle, RefreshCw, ReceiptText, XCircle, Target, 
+  CalendarClock, Download, Trash2, Plus, Minus, 
+  RefreshCw, ReceiptText, XCircle, Target, 
   PieChart, BarChart3, Sun, Umbrella
 } from 'lucide-react';
 
@@ -18,12 +18,11 @@ export default function AdminDashboard() {
   const [vendaExpandida, setVendaExpandida] = useState<any>(null);
   const [estoque, setEstoque] = useState<any[]>([]);
   
-  // NOVO: Filtro de tempo e Meta Diária
-  const [filtroTempo, setFiltroTempo] = useState('hoje'); // hoje, semana, mes, tudo
+  const [filtroTempo, setFiltroTempo] = useState('hoje'); 
   const [metaDiaria, setMetaDiaria] = useState(3000);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    // Carrega a meta salva no celular/PC do gestor
     const metaSalva = localStorage.getItem('gestor_meta');
     if (metaSalva) setMetaDiaria(Number(metaSalva));
 
@@ -55,7 +54,6 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  // Salva a meta sempre que alterar
   const handleMudancaMeta = (valor: number) => {
     setMetaDiaria(valor);
     localStorage.setItem('gestor_meta', valor.toString());
@@ -67,8 +65,13 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
+  const buscarEstoque = async () => {
+    const { data } = await supabase.from('estoque').select('*').order('nome_produto', { ascending: true });
+    if (data) setEstoque(data);
+  };
+
   // ==========================================
-  // FILTRAGEM INTELIGENTE DE DATAS
+  // FILTRAGEM INTELIGENTE
   // ==========================================
   const vendasFiltradas = vendas.filter(v => {
     if (filtroTempo === 'tudo') return true;
@@ -97,14 +100,12 @@ export default function AdminDashboard() {
   const ticketMedio = vendasFiltradas.length > 0 ? faturamentoTotal / vendasFiltradas.length : 0;
   const progressoMeta = Math.min((faturamentoTotal / metaDiaria) * 100, 100);
 
-  // Pagamentos Agrupados
   const faturamentoPagamentos = vendasFiltradas.reduce((acc, v) => {
     const forma = v.forma_pagamento || 'Não Informado';
     acc[forma] = (acc[forma] || 0) + Number(v.valor_total);
     return acc;
   }, {} as Record<string, number>);
 
-  // Top 5 Produtos
   const contagemProdutos = vendasFiltradas.reduce((acc, v) => {
     if (v.itens && Array.isArray(v.itens)) {
       v.itens.forEach((item: any) => {
@@ -113,9 +114,12 @@ export default function AdminDashboard() {
     }
     return acc;
   }, {} as Record<string, number>);
-  const top5Produtos = Object.entries(contagemProdutos).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  
+  // FIX TYPESCRIPT: Forçando a tipagem para o Object.entries
+  const top5Produtos = (Object.entries(contagemProdutos) as [string, number][])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
-  // Clima x Vendas (Sempre usa TODOS os dados para ter histórico suficiente)
   const analiseClima = vendas.reduce((acc, v) => {
     const clima = v.clima_condicao || 'Não Informado';
     if (!acc[clima]) acc[clima] = { faturamento: 0, mesas: 0 };
@@ -124,11 +128,10 @@ export default function AdminDashboard() {
     return acc;
   }, {} as Record<string, { faturamento: number, mesas: number }>);
 
-
   // ==========================================
   // LÓGICAS DE AÇÕES DO HISTÓRICO
   // ==========================================
-  const atualizarClimaEmLote = async (idVenda: string, condicao: string, dataIso: string) => {
+  const atualizarClimaEmLote = async (condicao: string, dataIso: string) => {
     const dataAlvo = new Date(dataIso);
     const inicioDia = new Date(dataAlvo.setHours(0, 0, 0, 0)).toISOString();
     const fimDia = new Date(dataAlvo.setHours(23, 59, 59, 999)).toISOString();
@@ -141,18 +144,18 @@ export default function AdminDashboard() {
     await supabase.from('vendas_historico').update({ clima_condicao: condicao }).gte('criado_em', inicioDia).lte('criado_em', fimDia);
   };
 
-  const atualizarPagamento = async (idVenda: string, pagamento: string) => {
+  const atualizarPagamento = async (idVenda: string | number, pagamento: string) => {
     setVendas(prev => prev.map(v => v.id === idVenda ? { ...v, forma_pagamento: pagamento } : v));
     await supabase.from('vendas_historico').update({ forma_pagamento: pagamento }).eq('id', idVenda);
   };
 
-  const atualizarValorVenda = async (idVenda: string, novoValor: number) => {
+  const atualizarValorVenda = async (idVenda: string | number, novoValor: number) => {
     if (isNaN(novoValor)) return;
     setVendas(prev => prev.map(v => v.id === idVenda ? { ...v, valor_total: novoValor } : v));
     await supabase.from('vendas_historico').update({ valor_total: novoValor }).eq('id', idVenda);
   };
 
-  const removerVenda = async (id: string) => {
+  const removerVenda = async (id: string | number) => {
     if (!window.confirm("Tem certeza que deseja excluir esta venda permanentemente?")) return;
     setVendas(prev => prev.filter(v => v.id !== id));
     await supabase.from('vendas_historico').delete().eq('id', id);
@@ -163,7 +166,7 @@ export default function AdminDashboard() {
     
     const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Valor Total", "Itens Consumidos"];
     
-    const linhas = vendasFiltradas.map(v => { // Usa apenas vendasFiltradas
+    const linhas = vendasFiltradas.map(v => {
       const data = new Date(v.criado_em).toLocaleDateString('pt-BR');
       const hora = new Date(v.criado_em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
       const itensFormatados = v.itens && Array.isArray(v.itens) 
@@ -185,12 +188,7 @@ export default function AdminDashboard() {
   // ==========================================
   // LÓGICAS DE ESTOQUE
   // ==========================================
-  const buscarEstoque = async () => {
-    const { data } = await supabase.from('estoque').select('*').order('nome_produto', { ascending: true });
-    if (data) setEstoque(data);
-  };
-
-  const alterarQuantidadeEstoque = async (id: string, delta: number) => {
+  const alterarQuantidadeEstoque = async (id: string | number, delta: number) => {
     const item = estoque.find(e => e.id === id);
     if (!item) return;
     const novaQtd = Math.max(0, Number(item.quantidade_atual) + delta);
@@ -198,7 +196,7 @@ export default function AdminDashboard() {
     await supabase.from('estoque').update({ quantidade_atual: novaQtd }).eq('id', id);
   };
 
-  const atualizarStatusEstoque = async (id: string, novoStatus: string) => {
+  const atualizarStatusEstoque = async (id: string | number, novoStatus: string) => {
     setEstoque(prev => prev.map(e => e.id === id ? { ...e, status: novoStatus } : e));
     await supabase.from('estoque').update({ status: novoStatus }).eq('id', id);
   };
@@ -257,17 +255,17 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* NAVEGAÇÃO MOBILE (BOTTOM BAR) */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-gray-950 border-t border-gray-800 z-50 flex justify-around pb-safe">
-        <button onClick={() => setAbaAtiva('resumo')} className={`flex flex-col items-center p-3 flex-1 ${abaAtiva === 'resumo' ? 'text-orange-500' : 'text-gray-400'}`}>
+      {/* NAVEGAÇÃO MOBILE */}
+      <nav className="md:hidden fixed bottom-0 w-full bg-gray-950 border-t border-gray-800 z-50 flex justify-around pb-4 pt-2 shadow-2xl">
+        <button onClick={() => setAbaAtiva('resumo')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'resumo' ? 'text-orange-500' : 'text-gray-400'}`}>
           <LayoutDashboard className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Painel</span>
         </button>
-        <button onClick={() => setAbaAtiva('historico')} className={`flex flex-col items-center p-3 flex-1 ${abaAtiva === 'historico' ? 'text-orange-500' : 'text-gray-400'}`}>
+        <button onClick={() => setAbaAtiva('historico')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'historico' ? 'text-orange-500' : 'text-gray-400'}`}>
           <TrendingUp className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Vendas</span>
         </button>
-        <button onClick={() => setAbaAtiva('estoque')} className={`flex flex-col items-center p-3 flex-1 ${abaAtiva === 'estoque' ? 'text-orange-500' : 'text-gray-400'}`}>
+        <button onClick={() => setAbaAtiva('estoque')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'estoque' ? 'text-orange-500' : 'text-gray-400'}`}>
           <Package className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Estoque</span>
         </button>
@@ -275,7 +273,6 @@ export default function AdminDashboard() {
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto w-full">
-        
         <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-black text-gray-900">
@@ -285,7 +282,6 @@ export default function AdminDashboard() {
             </h2>
           </div>
           
-          {/* BOTÕES DE AÇÃO DO HEADER E FILTROS */}
           <div className="flex flex-wrap items-center gap-3">
             {(abaAtiva === 'historico' || abaAtiva === 'resumo') && (
                <select 
@@ -313,12 +309,8 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        {/* ==========================================
-            ABA: VISÃO GERAL (NOVO BI)
-            ========================================== */}
         {abaAtiva === 'resumo' && (
           <div className="space-y-6">
-            {/* CARDS DE KPI */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
                 <div className="flex items-center gap-3 text-orange-600 mb-2">
@@ -364,10 +356,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* SEGUNDA LINHA DE GRÁFICOS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* TOP 5 PRODUTOS */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-1">
                 <h3 className="font-black text-xl text-gray-900 mb-4 flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-orange-600" /> Top 5 Mais Vendidos
@@ -391,7 +380,6 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* FORMAS DE PAGAMENTO */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-1">
                 <h3 className="font-black text-xl text-gray-900 mb-4 flex items-center gap-2">
                   <PieChart className="w-5 h-5 text-orange-600" /> Por Pagamento
@@ -400,7 +388,8 @@ export default function AdminDashboard() {
                   <p className="text-gray-500 font-medium">Nenhum dado financeiro.</p>
                 ) : (
                   <div className="space-y-4">
-                    {Object.entries(faturamentoPagamentos).map(([forma, valor]) => {
+                    {/* FIX TYPESCRIPT: Tipagem explícita para o Object.entries */}
+                    {(Object.entries(faturamentoPagamentos) as [string, number][]).map(([forma, valor]) => {
                       const porcentagem = ((valor / faturamentoTotal) * 100).toFixed(0);
                       return (
                         <div key={forma}>
@@ -418,7 +407,6 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* INTELIGÊNCIA DE CLIMA */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-1">
                 <h3 className="font-black text-xl text-gray-900 mb-4 flex items-center gap-2">
                   <CloudRain className="w-5 h-5 text-blue-500" /> Vendas vs. Clima
@@ -426,7 +414,10 @@ export default function AdminDashboard() {
                 <p className="text-xs text-gray-500 font-medium mb-4">Baseado no histórico total do restaurante.</p>
                 
                 <div className="space-y-3">
-                  {Object.entries(analiseClima).filter(([c]) => c !== 'Não Informado').map(([clima, dados]) => {
+                  {/* FIX TYPESCRIPT: Tipagem explícita para o Object.entries */}
+                  {(Object.entries(analiseClima) as [string, { faturamento: number, mesas: number }][])
+                    .filter(([c]) => c !== 'Não Informado')
+                    .map(([clima, dados]) => {
                     const ticketLocal = dados.mesas > 0 ? dados.faturamento / dados.mesas : 0;
                     return (
                       <div key={clima} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -448,14 +439,10 @@ export default function AdminDashboard() {
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
 
-        {/* ==========================================
-            ABA: ESTOQUE (COM BOTÕES RÁPIDOS)
-            ========================================== */}
         {abaAtiva === 'estoque' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
             {estoque.length === 0 ? (
@@ -476,7 +463,8 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(estoqueAgrupado).map(([categoria, itens]) => (
+                    {/* FIX TYPESCRIPT: Tipagem explícita */}
+                    {(Object.entries(estoqueAgrupado) as [string, any[]][]).map(([categoria, itens]) => (
                       <React.Fragment key={categoria}>
                         <tr className="bg-gray-100 border-y border-gray-200">
                           <td colSpan={4} className="p-3 font-black text-gray-900 uppercase tracking-widest text-sm">
@@ -486,13 +474,12 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                         </tr>
-                        {(itens as any[]).map((item: any) => (
+                        {itens.map((item: any) => (
                             <tr key={item.id} className="border-b border-gray-100 hover:bg-orange-50/50 transition-colors">
                               <td className="p-4 font-extrabold text-gray-900">{item.nome_produto}</td>
                               <td className="p-4 text-center text-sm font-bold text-gray-800">{item.unidade_medida}</td>
                               <td className="p-4">
                                 <div className="flex items-center justify-center gap-2 md:gap-3">
-                                  {/* BOTÕES RÁPIDOS DE + e - NA TELA DO GESTOR */}
                                   <button onClick={() => alterarQuantidadeEstoque(item.id, -1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-red-50 hover:text-red-600 rounded-lg shadow-sm transition-colors active:scale-95"><Minus className="w-4 h-4" /></button>
                                   <span className="font-black text-xl md:text-2xl w-10 md:w-12 text-center text-gray-900">{item.quantidade_atual}</span>
                                   <button onClick={() => alterarQuantidadeEstoque(item.id, 1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-green-50 hover:text-green-600 rounded-lg shadow-sm transition-colors active:scale-95"><Plus className="w-4 h-4" /></button>
@@ -521,9 +508,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ==========================================
-            ABA: HISTÓRICO DE VENDAS (FILTRADO)
-            ========================================== */}
         {abaAtiva === 'historico' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-4 md:p-6 shadow-sm">
             <div className="overflow-x-auto">
@@ -567,7 +551,7 @@ export default function AdminDashboard() {
                         <td className="p-4">
                           <select 
                             value={venda.clima_condicao || ''}
-                            onChange={(e) => atualizarClimaEmLote(venda.id, e.target.value, venda.criado_em)}
+                            onChange={(e) => atualizarClimaEmLote(e.target.value, venda.criado_em)}
                             className={`font-bold p-2 rounded-lg border focus:outline-none cursor-pointer shadow-sm text-sm ${venda.clima_condicao ? 'bg-orange-50 border-orange-200 text-orange-800' : 'bg-gray-50 border-gray-300 text-gray-600'}`}
                           >
                             <option value="">☁️ Informar...</option>
