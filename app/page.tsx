@@ -304,37 +304,47 @@ export default function GarcomApp() {
             return (
               <div
                 key={numero}
-                onClick={() => {
-                  if (!aguardandoPagamento) abrirMesa(numero);
-                }}
-                style={{ cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
                 className={`relative border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all select-none
                   ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
                     mesaOcupada ? 'bg-orange-50 border-orange-300 active:scale-95' : 
                     'bg-white border-gray-300 active:scale-95'}`}
               >
-                {mesaOcupada && !aguardandoPagamento && (
-                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse pointer-events-none" />
+                {/* A MÁGICA ACONTECE AQUI: 
+                  Botão 100% invisível que cobre a div toda. O iOS não tem como bloquear isso.
+                */}
+                {!aguardandoPagamento && (
+                  <button 
+                    type="button"
+                    onClick={() => abrirMesa(numero)}
+                    className="absolute inset-0 w-full h-full z-10 cursor-pointer rounded-2xl outline-none"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  />
                 )}
 
-                <span className={`pointer-events-none text-sm font-bold uppercase tracking-widest mb-1 
+                {/* VISUAL DA MESA (Fica embaixo do botão invisível) */}
+                {mesaOcupada && !aguardandoPagamento && (
+                  <div className="absolute top-3 right-3 w-3 h-3 bg-orange-600 rounded-full animate-pulse" />
+                )}
+
+                <span className={`text-sm font-bold uppercase tracking-widest mb-1 
                   ${aguardandoPagamento ? 'text-blue-700' : mesaOcupada ? 'text-orange-700' : 'text-gray-600'}`}>
                   Mesa
                 </span>
                 
-                <span className={`pointer-events-none text-4xl font-black 
+                <span className={`text-4xl font-black 
                   ${aguardandoPagamento ? 'text-blue-800' : mesaOcupada ? 'text-orange-800' : 'text-gray-900'}`}>
                   {numero}
                 </span>
 
+                {/* BOTÃO LIBERAR (Tem prioridade z-20 para ficar acima do botão invisível) */}
                 {aguardandoPagamento && (
                   <button 
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       liberarMesaCaixa(numero, e);
                     }}
-                    style={{ cursor: 'pointer' }}
-                    className="absolute bottom-3 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-blue-700 active:scale-95 shadow-sm"
+                    className="absolute bottom-3 z-20 bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full cursor-pointer hover:bg-blue-700 active:scale-95 shadow-sm"
                   >
                     Liberar
                   </button>
