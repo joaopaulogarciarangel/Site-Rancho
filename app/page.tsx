@@ -73,6 +73,49 @@ export default function GarcomApp() {
 
     carregarMesasAbertas();
   }, []);
+
+  // =====================================================
+  // MEMÓRIA LOCAL: SALVAR RASCUNHO PARA NÃO PERDER O PEDIDO
+  // =====================================================
+  const iniciouRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // 1. Ao abrir a página, tenta puxar a memória do celular
+    const mesaSalva = localStorage.getItem('garcom_mesa');
+    const carrinhoSalvo = localStorage.getItem('garcom_carrinho');
+
+    if (mesaSalva) setMesaAtiva(Number(mesaSalva));
+    if (carrinhoSalvo) {
+      try {
+        setCarrinho(JSON.parse(carrinhoSalvo));
+      } catch (e) {}
+    }
+    
+    // Libera a gravação após ler os dados iniciais
+    setTimeout(() => { iniciouRef.current = true; }, 500);
+  }, []);
+
+  // 2. Sempre que a mesa ativa mudar, salva o número dela
+  React.useEffect(() => {
+    if (iniciouRef.current) {
+      if (mesaAtiva !== null) {
+        localStorage.setItem('garcom_mesa', mesaAtiva.toString());
+      } else {
+        localStorage.removeItem('garcom_mesa');
+      }
+    }
+  }, [mesaAtiva]);
+
+  // 3. Sempre que adicionar/remover um item, salva o carrinho inteiro
+  React.useEffect(() => {
+    if (iniciouRef.current) {
+      if (carrinho.length > 0) {
+        localStorage.setItem('garcom_carrinho', JSON.stringify(carrinho));
+      } else {
+        localStorage.removeItem('garcom_carrinho');
+      }
+    }
+  }, [carrinho]);
   // =====================================================
 
   // --- LÓGICA DE NAVEGAÇÃO ---
