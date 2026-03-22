@@ -22,6 +22,11 @@ interface ItemPedido {
 }
 
 export default function GarcomApp() {
+  const [montado, setMontado] = useState(false);
+
+  React.useEffect(() => {
+    setMontado(true);
+  }, []);
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
@@ -45,8 +50,11 @@ export default function GarcomApp() {
 
   // --- LÓGICA DE NAVEGAÇÃO ---
   const abrirMesa = (numeroMesa: number) => {
+    console.log("Abrindo mesa:", numeroMesa);
+    setCarrinho([]); 
     setMesaAtiva(numeroMesa);
-    setCarrinho([]);
+    // Força o scroll para o topo para garantir que a troca de tela seja visível
+    window.scrollTo(0, 0);
   };
 
   const voltarParaMesas = () => {
@@ -286,7 +294,10 @@ export default function GarcomApp() {
   // ==========================================
   // TELA 1: SELEÇÃO DE MESAS
   // ==========================================
+  if (!montado) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold">Carregando...</div>;
+
   if (mesaAtiva === null) {
+    // ... resto do código das mesas
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
         
@@ -299,8 +310,11 @@ export default function GarcomApp() {
         {/* === BOTÃO DE TESTE PARA O CARDÁPIO === */}
         <button 
           type="button"
-          onClick={() => abrirMesa(99)}
-          className="w-full max-w-md bg-red-600 text-white text-center font-black text-xl py-5 rounded-2xl shadow-xl mb-6 mt-4 cursor-pointer active:scale-95"
+          onClick={() => {
+            alert("Botão clicado!");
+            abrirMesa(99);
+          }}
+          className="w-full max-w-md bg-red-600 text-white text-center font-black text-xl py-5 rounded-2xl shadow-xl mb-6 mt-4"
         >
           TESTE: ABRIR MESA 99
         </button>
