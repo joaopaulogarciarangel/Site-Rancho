@@ -39,6 +39,42 @@ export default function GarcomApp() {
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
 
+  // =====================================================
+  // RECUPERAR COMANDAS SALVAS AO ABRIR O APLICATIVO
+  // =====================================================
+  React.useEffect(() => {
+    const carregarMesasAbertas = async () => {
+      // Puxa do Supabase todos os pedidos que não foram finalizados
+      const { data, error } = await supabase
+        .from('pedidos')
+        .select('mesa, itens')
+        .neq('status', 'finalizado');
+
+      if (data && !error) {
+        const comandasRecuperadas: Record<number, ItemPedido[]> = {};
+        
+        // Organiza os pedidos puxados do banco separando cada um na sua mesa
+        data.forEach((pedido) => {
+          const numeroMesa = pedido.mesa;
+          if (!comandasRecuperadas[numeroMesa]) {
+            comandasRecuperadas[numeroMesa] = [];
+          }
+          
+          // Adiciona os itens à mesa correta
+          if (pedido.itens && Array.isArray(pedido.itens)) {
+            comandasRecuperadas[numeroMesa].push(...pedido.itens);
+          }
+        });
+
+        // Salva na memória do garçom, preenchendo as bolinhas laranjas nas mesas
+        setComandasPorMesa(comandasRecuperadas);
+      }
+    };
+
+    carregarMesasAbertas();
+  }, []);
+  // =====================================================
+
   // --- LÓGICA DE NAVEGAÇÃO ---
   const abrirMesa = (numeroMesa: number) => {
     setCarrinho([]);
@@ -480,9 +516,9 @@ export default function GarcomApp() {
                           <span className="font-bold text-gray-900 flex-1 pr-2 text-base">{item.nome}</span>
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
-                              <button onClick={() => alterarQuantidadeUID(item.uid, -1)} className="p-1 bg-white rounded shadow-sm"><Minus className="w-4 h-4" /></button>
-                              <span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
-                              <button onClick={() => alterarQuantidadeUID(item.uid, 1)} className="p-1 bg-white rounded shadow-sm"><Plus className="w-4 h-4" /></button>
+                              <button onClick={() => alterarQuantidadeUID(item.uid, -1)} className="p-1 bg-white rounded shadow-sm text-black"><Minus className="w-4 h-4" /></button>
+<span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
+<button onClick={() => alterarQuantidadeUID(item.uid, 1)} className="p-1 bg-white rounded shadow-sm text-black"><Plus className="w-4 h-4" /></button>
                             </div>
                             <button onClick={() => removerItemInteiroCarrinho(item.uid)} className="p-1.5 text-red-600 bg-red-100 hover:bg-red-200 rounded-lg border border-red-200">
                               <Trash2 className="w-5 h-5" />
@@ -527,7 +563,7 @@ export default function GarcomApp() {
                         <div className="flex justify-between items-center border-t border-gray-100 pt-3">
                           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 border border-gray-300">
                             <button onClick={() => alterarQuantidadeComanda(item.uid, -1)} className="p-1 bg-white rounded shadow-sm text-gray-900"><Minus className="w-4 h-4" /></button>
-                            <span className="font-black w-6 text-center text-sm">{item.quantidade}</span>
+                            <span className="font-black w-6 text-center text-black text-lg">{item.quantidade}</span>
                             <button onClick={() => alterarQuantidadeComanda(item.uid, 1)} className="p-1 bg-white rounded shadow-sm text-gray-900"><Plus className="w-4 h-4" /></button>
                           </div>
                           <button onClick={() => { if (window.confirm(`Cancelar ${item.nome}?`)) removerItemInteiroComanda(item.uid); }} className="text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-lg border border-red-200 font-bold text-sm flex items-center gap-1.5">
