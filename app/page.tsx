@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Adicionado useEffect explicitamente
 import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2 } from 'lucide-react';
 import { CATEGORIAS, PRODUTOS, Produto } from '../data/cardapio';
 import { supabase } from '../lib/supabase';
@@ -24,7 +24,7 @@ interface ItemPedido {
 export default function GarcomApp() {
   const [montado, setMontado] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setMontado(true);
   }, []);
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
@@ -72,7 +72,7 @@ export default function GarcomApp() {
         return novo;
       }
       return [...prev, {
-        uid: Date.now().toString() + Math.random().toString(),
+        uid: Math.random().toString(36).substr(2, 9),
         idProduto: idFinal,
         nome: rotulo ? `${produto.nome} (${rotulo})` : produto.nome,
         preco: preco,
