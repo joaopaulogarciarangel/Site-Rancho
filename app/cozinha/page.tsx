@@ -2,22 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChefHat, Clock, CheckCircle2, Flame, LayoutGrid } from 'lucide-react';
-// 1. IMPORTAR O SUPABASE (Ajuste o caminho para onde está o seu arquivo de configuração)
 import { supabase } from '@/lib/supabase'; 
 
 export default function MonitorCozinha() {
-  // 2. INICIAR COM ARRAY VAZIO (Removemos o PEDIDOS_MOCK)
   const [pedidos, setPedidos] = useState<any[]>([]);
 
-  // 3. BUSCAR DADOS DO SUPABASE E OUVIR TEMPO REAL
   useEffect(() => {
-    // Função para puxar o que já está no banco
+    // Busca inicial no banco
     const fetchPedidos = async () => {
       const { data, error } = await supabase
-        .from('pedidos') // ⚠️ Substitua 'pedidos' pelo nome exato da sua tabela
+        .from('pedidos')
         .select('*')
         .in('status', ['pendente', 'preparando', 'pronto'])
-        .order('created_at', { ascending: true }); // Assume que você tem uma coluna created_at
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('Erro ao buscar pedidos:', error);
@@ -33,7 +30,7 @@ export default function MonitorCozinha() {
       .channel('monitor-cozinha')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos' }, // ⚠️ Substitua 'pedidos' se necessário
+        { event: '*', schema: 'public', table: 'pedidos' },
         (payload) => {
           console.log('Novo evento no banco!', payload);
           fetchPedidos(); // Recarrega a lista se o garçom mandar pedido novo
@@ -46,19 +43,18 @@ export default function MonitorCozinha() {
     };
   }, []);
 
-  // 4. ATUALIZAR STATUS NO BANCO E NA TELA
-  const alterarStatus = async (idComanda: string, novoStatus: string) => {
+  // ATUALIZAR STATUS NO BANCO E NA TELA (Usando 'id' correto)
+  const alterarStatus = async (id: number | string, novoStatus: string) => {
     // Atualiza a tela instantaneamente
     setPedidos(prev => prev.map(p => 
-      // ⚠️ Se a chave primária no seu banco se chamar apenas 'id', mude de p.idComanda para p.id
-      p.idComanda === idComanda ? { ...p, status: novoStatus } : p
+      p.id === id ? { ...p, status: novoStatus } : p
     ));
 
     // Manda a atualização para o banco
     const { error } = await supabase
-      .from('pedidos') // ⚠️ Substitua 'pedidos' pelo nome da tabela
+      .from('pedidos')
       .update({ status: novoStatus })
-      .eq('idComanda', idComanda); // ⚠️ Mude 'idComanda' para o nome da coluna de ID do seu banco
+      .eq('id', id);
 
     if (error) {
       console.error('Erro ao atualizar no banco:', error);
@@ -96,7 +92,6 @@ export default function MonitorCozinha() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-start">
           
           {pedidos.map((pedido) => {
-            
             // Definição de cores baseada no status
             const isPronto = pedido.status === 'pronto';
             const isPreparando = pedido.status === 'preparando';
@@ -105,21 +100,18 @@ export default function MonitorCozinha() {
             const headerColor = isPronto ? 'bg-green-700' : isPreparando ? 'bg-orange-600' : 'bg-gray-700';
 
             return (
-              // ⚠️ Mesma coisa aqui: se o banco retornar 'id', mude de pedido.idComanda para pedido.id
-              <div key={pedido.idComanda} className={`rounded-xl border-2 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 ${bgCard}`}>
+              <div key={pedido.id} className={`rounded-xl border-2 shadow-xl overflow-hidden flex flex-col transition-colors duration-300 ${bgCard}`}>
                 
                 {/* CABEÇALHO DO CARD */}
                 <div className={`p-3 flex justify-between items-center ${headerColor}`}>
                   <h2 className="text-2xl font-black text-white">Mesa {pedido.mesa}</h2>
                   <div className="flex items-center gap-1.5 bg-black/30 px-2.5 py-1 rounded-md font-bold text-white text-sm">
-                    {/* Se você não tiver uma coluna 'tempo' no banco, pode precisar calcular a partir do created_at */}
                     <Clock className="w-4 h-4" /> {pedido.tempo || '0 min'}
                   </div>
                 </div>
 
                 {/* LISTA DE ITENS */}
                 <div className="p-4 flex-1 space-y-3">
-                  {/* Verifica se existem itens antes de dar o map, para evitar erros caso o banco retorne vazio */}
                   {pedido.itens && pedido.itens.map((item: any, idx: number) => (
                     <div key={idx} className="border-b border-gray-700/50 pb-3 last:border-0 last:pb-0">
                       <div className="flex gap-2 items-start">
@@ -139,11 +131,11 @@ export default function MonitorCozinha() {
                   ))}
                 </div>
 
-                {/* BOTÕES DE AÇÃO */}
+                {/* BOTÕES DE AÇÃO (Usando 'pedido.id') */}
                 <div className="p-3 bg-black/20 border-t border-gray-700/50 grid grid-cols-2 gap-2">
                   {pedido.status === 'pendente' && (
                     <button 
-                      onClick={() => alterarStatus(pedido.idComanda, 'preparando')}
+                      onClick={() => alterarStatus(pedido.id, 'preparando')}
                       className="col-span-2 bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
                     >
                       <Flame className="w-5 h-5" /> Iniciar Preparo
@@ -152,7 +144,7 @@ export default function MonitorCozinha() {
 
                   {pedido.status === 'preparando' && (
                     <button 
-                      onClick={() => alterarStatus(pedido.idComanda, 'pronto')}
+                      onClick={() => alterarStatus(pedido.id, 'pronto')}
                       className="col-span-2 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-[0_0_15px_rgba(22,163,74,0.4)]"
                     >
                       <CheckCircle2 className="w-6 h-6" /> Marcar como Pronto
@@ -161,7 +153,7 @@ export default function MonitorCozinha() {
 
                   {pedido.status === 'pronto' && (
                     <div className="col-span-2 flex items-center justify-center gap-2 py-2 text-green-500 font-bold">
-                      <CheckCircle2 className="w-5 h-5" /> Aguardando Liberação da Mesa
+                      <CheckCircle2 className="w-5 h-5" /> Aguardando Liberação
                     </div>
                   )}
                 </div>
