@@ -374,7 +374,7 @@ export default function GarcomApp() {
               <button
                 key={numero}
                 onClick={() => aguardandoPagamento ? null : abrirMesa(numero)}
-                className={`border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all relative
+                className={`cursor-pointer touch-manipulation border-2 rounded-2xl py-8 flex flex-col items-center justify-center shadow-sm transition-all relative
                   ${aguardandoPagamento ? 'bg-blue-50 border-blue-300' : 
                     mesaOcupada ? 'bg-orange-50 border-orange-300 hover:border-orange-500 active:scale-95' : 
                     'bg-white border-gray-300 hover:border-gray-500 active:scale-95'}`}
