@@ -24,8 +24,20 @@ export const PRODUTOS: Produto[] = [
   // CARNES PRINCIPAIS (COM OPÇÕES DE TAMANHO)
   // ==========================================
   { 
+    id: 'c4',
+    nome: 'Picanha', 
+    preco: 0, // Ignorado pois usaremos os tamanhos
+    categoria: 'Carnes Principais', 
+    descricao: 'Escolha 4 acompanhamentos. Anote nas observações.', 
+    setor: 'cozinha',
+    opcoesTamanho: [
+      { idOpcao: 'p2', rotulo: 'Para 2 Pessoas', preco: 159.00 },
+      { idOpcao: 'p4', rotulo: 'Para 4 Pessoas', preco: 286.00 }
+    ]
+  },
+  { 
     id: 'c1', 
-    nome: 'Picanha e Bife de Lomo', 
+    nome: 'Bife de Lomo', 
     preco: 0, // Ignorado pois usaremos os tamanhos
     categoria: 'Carnes Principais', 
     descricao: 'Escolha 4 acompanhamentos. Anote nas observações.', 
