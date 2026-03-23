@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2, Search, Flame } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2, Search, Flame, Lock } from 'lucide-react';
 import { CATEGORIAS, PRODUTOS, Produto } from '../data/cardapio';
 import { supabase } from '../lib/supabase';
 
@@ -26,13 +26,22 @@ interface ItemPedido {
 
 export default function GarcomApp() {
   // =====================================================
-  // TODOS OS HOOKS PRIMEIRO — sem exceção, sem condições
+  // ESTADOS DE AUTENTICAÇÃO E SEGURANÇA (RLS)
+  // =====================================================
+  const [session, setSession] = useState<any>(null);
+  const [emailLogin, setEmailLogin] = useState('');
+  const [senhaLogin, setSenhaLogin] = useState('');
+  const [loadingAuth, setLoadingAuth] = useState(false);
+  const [verificandoSessao, setVerificandoSessao] = useState(true);
+
+  // =====================================================
+  // DEMAIS ESTADOS DO APLICATIVO
   // =====================================================
   const [formaPagamentoAtual, setFormaPagamentoAtual] = useState('PIX');
   const [pagamentosPorMesa, setPagamentosPorMesa] = useState<Record<number, string>>({});
   const [mesaAtiva, setMesaAtiva] = useState<number | null>(null);
   const [categoriaAtiva, setCategoriaAtiva] = useState(CATEGORIAS[0]);
-  const [termoBusca, setTermoBusca] = useState(''); // NOVO: Estado de Busca
+  const [termoBusca, setTermoBusca] = useState(''); 
   const [carrinho, setCarrinho] = useState<ItemPedido[]>([]);
   const [comandasPorMesa, setComandasPorMesa] = useState<Record<number, ItemPedido[]>>({});
   const [modalCarrinhoAberto, setModalCarrinhoAberto] = useState(false);
@@ -46,12 +55,43 @@ export default function GarcomApp() {
     preco: number;
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
-  const [pontoCarne, setPontoCarne] = useState(''); // NOVO: Estado do ponto da carne
+  const [pontoCarne, setPontoCarne] = useState('');
 
   // =====================================================
-  // RECUPERAR COMANDAS SALVAS AO ABRIR O APLICATIVO
+  // VERIFICAÇÃO DE LOGIN
   // =====================================================
-  React.useEffect(() => {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setVerificandoSessao(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingAuth(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailLogin,
+      password: senhaLogin,
+    });
+    if (error) {
+      alert('Erro ao entrar. Verifique o e-mail e a senha do garçom.');
+    }
+    setLoadingAuth(false);
+  };
+
+  // =====================================================
+  // RECUPERAR COMANDAS SALVAS (SÓ RODA SE ESTIVER LOGADO)
+  // =====================================================
+  useEffect(() => {
+    if (!session) return; 
+
     const carregarMesasAbertas = async () => {
       const { data, error } = await supabase
         .from('pedidos')
@@ -63,9 +103,7 @@ export default function GarcomApp() {
         
         data.forEach((pedido) => {
           const numeroMesa = pedido.mesa;
-          if (!comandasRecuperadas[numeroMesa]) {
-            comandasRecuperadas[numeroMesa] = [];
-          }
+          if (!comandasRecuperadas[numeroMesa]) comandasRecuperadas[numeroMesa] = [];
           if (pedido.itens && Array.isArray(pedido.itens)) {
             comandasRecuperadas[numeroMesa].push(...pedido.itens);
           }
@@ -74,52 +112,97 @@ export default function GarcomApp() {
       }
     };
     carregarMesasAbertas();
-  }, []);
+  }, [session]);
 
   // =====================================================
-  // MEMÓRIA LOCAL: SALVAR RASCUNHO PARA NÃO PERDER O PEDIDO
+  // MEMÓRIA LOCAL: SALVAR RASCUNHO
   // =====================================================
   const iniciouRef = React.useRef(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const mesaSalva = localStorage.getItem('garcom_mesa');
     const carrinhoSalvo = localStorage.getItem('garcom_carrinho');
 
     if (mesaSalva) setMesaAtiva(Number(mesaSalva));
     if (carrinhoSalvo) {
-      try {
-        setCarrinho(JSON.parse(carrinhoSalvo));
-      } catch (e) {}
+      try { setCarrinho(JSON.parse(carrinhoSalvo)); } catch (e) {}
     }
     setTimeout(() => { iniciouRef.current = true; }, 500);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (iniciouRef.current) {
-      if (mesaAtiva !== null) {
-        localStorage.setItem('garcom_mesa', mesaAtiva.toString());
-      } else {
-        localStorage.removeItem('garcom_mesa');
-      }
+      if (mesaAtiva !== null) localStorage.setItem('garcom_mesa', mesaAtiva.toString());
+      else localStorage.removeItem('garcom_mesa');
     }
   }, [mesaAtiva]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (iniciouRef.current) {
-      if (carrinho.length > 0) {
-        localStorage.setItem('garcom_carrinho', JSON.stringify(carrinho));
-      } else {
-        localStorage.removeItem('garcom_carrinho');
-      }
+      if (carrinho.length > 0) localStorage.setItem('garcom_carrinho', JSON.stringify(carrinho));
+      else localStorage.removeItem('garcom_carrinho');
     }
   }, [carrinho]);
 
   // =====================================================
-  // LÓGICA DE NAVEGAÇÃO
+  // TELA DE LOGIN (Se não estiver autenticado)
+  // =====================================================
+  if (verificandoSessao) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-gray-500">Verificando acesso...</div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
+          <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-black text-center text-gray-900 mb-2">Acesso do Garçom</h2>
+          <p className="text-center text-gray-500 font-medium mb-8">Faça login para conectar com a cozinha.</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">E-mail</label>
+              <input 
+                type="email" 
+                required
+                value={emailLogin}
+                onChange={e => setEmailLogin(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-300 text-gray-900 font-medium px-4 py-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="garcom@restaurante.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Senha</label>
+              <input 
+                type="password" 
+                required
+                value={senhaLogin}
+                onChange={e => setSenhaLogin(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-300 text-gray-900 font-medium px-4 py-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="••••••••"
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={loadingAuth}
+              className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black text-lg py-4 rounded-xl shadow-lg active:scale-95 transition-transform mt-4"
+            >
+              {loadingAuth ? 'Entrando...' : 'Entrar no Sistema'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================================
+  // LÓGICA DE NAVEGAÇÃO E CARRINHO
   // =====================================================
   const abrirMesa = (numeroMesa: number) => {
     setCarrinho([]);
-    setTermoBusca(''); // Limpa a busca ao entrar na mesa
+    setTermoBusca('');
     setMesaAtiva(numeroMesa);
     setTimeout(() => window.scrollTo(0, 0), 10);
   };
@@ -129,7 +212,6 @@ export default function GarcomApp() {
     setModalCarrinhoAberto(false);
   };
 
-  // --- LÓGICA DO CARRINHO ---
   const adicionarAoCarrinho = (produto: Produto, idFinal: string, rotulo: string, preco: number, observacao: string = '') => {
     setCarrinho((prev) => {
       const existenteIndex = prev.findIndex(i => i.idProduto === idFinal && i.observacao === observacao);
@@ -177,12 +259,11 @@ export default function GarcomApp() {
     setCarrinho((prev) => prev.map(item => item.uid === uid ? { ...item, observacao: texto } : item));
   };
 
-  // --- GATILHO DOS BOTÕES DO CARDÁPIO ---
   const handleBotaoMais = (produto: Produto, idOpcao?: string, rotulo?: string, preco?: number) => {
     if (produto.categoria === 'Carnes Principais') {
       setModalAcomp({ produto, idOpcao: idOpcao || '', rotulo: rotulo || '', preco: preco || produto.preco });
       setSelecaoAcomp({});
-      setPontoCarne(''); // Reseta o ponto da carne
+      setPontoCarne(''); 
     } else {
       const idFinal = idOpcao ? `${produto.id}-${idOpcao}` : produto.id;
       adicionarAoCarrinho(produto, idFinal, rotulo || '', preco !== undefined ? preco : produto.preco);
@@ -193,7 +274,6 @@ export default function GarcomApp() {
     removerDoMenu(idOpcao ? `${produto.id}-${idOpcao}` : produto.id);
   };
 
-  // --- ACOMPANHAMENTOS ---
   const totalAcompSelecionados = Object.values(selecaoAcomp).reduce((a, b) => a + b, 0);
 
   const incrementarAcomp = (nome: string) => {
@@ -212,13 +292,11 @@ export default function GarcomApp() {
   const confirmarModalAcomp = () => {
     if (!modalAcomp) return;
 
-    // Constrói os acompanhamentos
     const obsAcomps = Object.entries(selecaoAcomp)
       .filter(([_, qtd]) => qtd > 0)
       .map(([nome, qtd]) => qtd > 1 ? `${qtd}x ${nome}` : nome)
       .join(', ');
     
-    // Concatena Ponto + Acompanhamentos
     let textoObservacao = '';
     if (pontoCarne) textoObservacao += `[Ponto: ${pontoCarne}] `;
     if (obsAcomps) textoObservacao += `com ${obsAcomps}`;
@@ -228,7 +306,6 @@ export default function GarcomApp() {
     setModalAcomp(null);
   };
 
-  // --- COMANDA ---
   const alterarQuantidadeComanda = (uid: string, delta: number) => {
     if (!mesaAtiva) return;
     setComandasPorMesa((prev) => {
@@ -238,8 +315,6 @@ export default function GarcomApp() {
       const novaQtd = item.quantidade + delta;
       if (novaQtd <= 0) {
         if (window.confirm(`Deseja cancelar totalmente ${item.nome}?`)) {
-          if (item.setor === 'cozinha') alert(`⚠️ COZINHA: Cancelar ${item.nome} da Mesa ${mesaAtiva}!`);
-          else alert(`⚠️ BAR: Cancelar ${item.nome} da Mesa ${mesaAtiva}!`);
           return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
         }
         return prev;
@@ -253,25 +328,26 @@ export default function GarcomApp() {
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
       const item = comandaAtual.find(i => i.uid === uid);
-      if (item) {
-        if (item.setor === 'cozinha') alert(`⚠️ COZINHA: Cancelar ${item.nome} da Mesa ${mesaAtiva}!`);
-        else alert(`⚠️ BAR: Cancelar ${item.nome} da Mesa ${mesaAtiva}!`);
-      }
       return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
     });
   };
 
-  // --- ENVIO ---
-  const enviarParaCozinhaEBar = async () => {
+  // --- ENVIO SIMPLIFICADO E UNIFICADO ---
+  const enviarParaCozinha = async () => {
     if (carrinho.length === 0 || !mesaAtiva) return;
-    const itensCozinha = carrinho.filter(item => item.setor === 'cozinha');
-    if (itensCozinha.length > 0) {
-      const { error } = await supabase.from('pedidos').insert([{ mesa: mesaAtiva, status: 'pendente', itens: itensCozinha }]);
-      if (error) {
-        alert("Erro na conexão! O pedido não foi enviado para a cozinha.");
-        return;
-      }
+    
+    // Envia tudo (bebida e comida) para a tabela 'pedidos' num único insert
+    const { error } = await supabase.from('pedidos').insert([{ 
+      mesa: mesaAtiva, 
+      status: 'pendente', 
+      itens: carrinho 
+    }]);
+
+    if (error) {
+      alert("Erro na conexão! O pedido não foi enviado.");
+      return;
     }
+
     setComandasPorMesa((prev) => {
       const novaComanda = [...(prev[mesaAtiva] || [])];
       carrinho.forEach(itemCarrinho => {
@@ -284,12 +360,13 @@ export default function GarcomApp() {
       });
       return { ...prev, [mesaAtiva]: novaComanda };
     });
+    
     setCarrinho([]);
     alert(`Pedido da Mesa ${mesaAtiva} enviado com sucesso!`);
     setModalCarrinhoAberto(false);
   };
 
-  // --- CÁLCULOS ---
+  // --- CÁLCULOS E FECHAMENTO DE CONTA ---
   const comandaDaMesaAtiva = mesaAtiva ? (comandasPorMesa[mesaAtiva] || []) : [];
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
   const totalComanda = comandaDaMesaAtiva.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
@@ -349,16 +426,24 @@ export default function GarcomApp() {
     }
   };
 
+  const fazerLogout = async () => {
+    await supabase.auth.signOut();
+  }
+
   // ==========================================
   // TELA 1: SELEÇÃO DE MESAS
   // ==========================================
   if (mesaAtiva === null) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
-        <div className="w-full max-w-md mb-8 text-center mt-6">
-          <UtensilsCrossed className="w-12 h-12 mx-auto text-orange-600 mb-4" />
-          <h1 className="text-3xl font-black text-gray-900">Salão Principal</h1>
-          <p className="text-gray-700 font-medium mt-1">Selecione a mesa para iniciar o pedido</p>
+        <div className="w-full max-w-md mb-8 mt-4 flex justify-between items-start">
+           <div className="text-left">
+             <h1 className="text-3xl font-black text-gray-900 flex items-center gap-2">
+                <UtensilsCrossed className="w-8 h-8 text-orange-600" /> Salão
+             </h1>
+             <p className="text-gray-600 font-medium mt-1">Garçom: {session.user.email}</p>
+           </div>
+           <button onClick={fazerLogout} className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">Sair</button>
         </div>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-md">
@@ -416,7 +501,6 @@ export default function GarcomApp() {
   // ==========================================
   // TELA 2: CARDÁPIO DA MESA
   // ==========================================
-  // FILTRO DINÂMICO (Por busca ou por categoria)
   const produtosFiltrados = termoBusca.trim() !== '' 
     ? PRODUTOS.filter(p => p.nome.toLowerCase().includes(termoBusca.toLowerCase()))
     : PRODUTOS.filter(p => p.categoria === categoriaAtiva);
@@ -440,7 +524,6 @@ export default function GarcomApp() {
           </button>
         </div>
 
-        {/* BARRA DE PESQUISA */}
         <div className="px-4 pb-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -454,14 +537,13 @@ export default function GarcomApp() {
           </div>
         </div>
 
-        {/* Barra de Categorias */}
         <div className="flex overflow-x-auto p-3 gap-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {CATEGORIAS.map((cat) => (
             <button
               key={cat}
               onClick={() => {
                 setCategoriaAtiva(cat);
-                setTermoBusca(''); // Limpa a pesquisa ao trocar de categoria
+                setTermoBusca('');
               }}
               className={`whitespace-nowrap px-5 py-2 rounded-full font-bold text-sm transition-colors
                 ${categoriaAtiva === cat && termoBusca === '' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
@@ -518,7 +600,6 @@ export default function GarcomApp() {
             </div>
           );
         })}
-        {/* Mensagem de quando a busca não encontra nada */}
         {produtosFiltrados.length === 0 && (
           <p className="text-center text-gray-500 font-medium py-10">Nenhum produto encontrado.</p>
         )}
@@ -537,8 +618,6 @@ export default function GarcomApp() {
             </div>
             
             <div className="flex-1 overflow-y-auto bg-gray-100">
-              
-              {/* OBRIGATÓRIO: PONTO DA CARNE */}
               {modalAcomp.produto.categoria === 'Carnes Principais' && (
                 <div className="p-5 bg-white mb-2 border-b border-gray-200 shadow-sm">
                   <h4 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-base">
@@ -559,7 +638,6 @@ export default function GarcomApp() {
                 </div>
               )}
 
-              {/* OPÇÕES DE ACOMPANHAMENTOS */}
               <div className="p-4 space-y-2">
                 <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (Até 4 opções)</h4>
                 {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
@@ -645,7 +723,7 @@ export default function GarcomApp() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={enviarParaCozinhaEBar} className="w-full mt-4 bg-orange-600 text-white font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+                  <button onClick={enviarParaCozinha} className="w-full mt-4 bg-orange-600 text-white font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
                     <Send className="w-5 h-5" /> Enviar para Produção (R$ {totalCarrinho.toFixed(2)})
                   </button>
                 </div>
