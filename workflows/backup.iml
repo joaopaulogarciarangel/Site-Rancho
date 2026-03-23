@@ -1,0 +1,29 @@
+name: Backup Automático do Supabase
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Roda todos os dias às 4 da manhã
+  workflow_dispatch: # Permite que você clique em um botão para rodar manualmente
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Baixar o Repositório
+      uses: actions/checkout@v3
+
+    - name: Instalar Cliente PostgreSQL
+      run: sudo apt-get install postgresql-client -y
+
+    - name: Extrair Dados do Supabase
+      run: |
+        mkdir -p backups
+        pg_dump "${{ secrets.SUPABASE_DB_URL }}" --clean --if-exists --inserts > backups/backup_diario.sql
+
+    - name: Salvar Cópia no GitHub
+      run: |
+        git config --global user.name "Robô de Segurança"
+        git config --global user.email "backup@restaurante"
+        git add backups/backup_diario.sql
+        git commit -m "🔒 Backup diário automático" || echo "Sem mudanças para salvar"
+        git push
