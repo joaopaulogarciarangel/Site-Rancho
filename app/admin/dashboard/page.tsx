@@ -120,18 +120,19 @@ export default function AdminDashboard() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  // Clima vs Vendas - Faturamento Médio Diário
   const analiseClima = vendas.reduce((acc, v) => {
     const clima = v.clima_condicao || 'Não Informado';
     if (!acc[clima]) acc[clima] = { faturamento: 0, dias: new Set<string>() };
     
     acc[clima].faturamento += Number(v.valor_total);
     
-    // Salva a data exata para sabermos em quantos dias diferentes esse clima ocorreu
     const dataVenda = new Date(v.criado_em).toDateString();
     acc[clima].dias.add(dataVenda);
     
     return acc;
   }, {} as Record<string, { faturamento: number, dias: Set<string> }>);
+
   // ==========================================
   // LÓGICAS DE AÇÕES DO HISTÓRICO
   // ==========================================
@@ -211,9 +212,21 @@ export default function AdminDashboard() {
     await supabase.from('estoque').update({ status: novoStatus }).eq('id', id);
   };
 
-  const importarCardapioParaEstoque = async () => {
-    if (!window.confirm("Isso vai importar os produtos do seu arquivo cardapio.ts para o banco. Continuar?")) return;
-    const novosInsumos = PRODUTOS.map(p => ({
+  const sincronizarEstoque = async () => {
+    if (!window.confirm("Isso vai procurar produtos novos no cardápio e adicionar ao estoque. Continuar?")) return;
+    
+    // Lista apenas os nomes do que já existe no Supabase
+    const nomesNoBanco = estoque.map(e => e.nome_produto);
+    
+    // Filtra o cardapio.ts para encontrar quem ainda não está no banco
+    const produtosFaltantes = PRODUTOS.filter(p => !nomesNoBanco.includes(p.nome));
+
+    if (produtosFaltantes.length === 0) {
+      alert("O seu estoque já está 100% atualizado com o cardápio!");
+      return;
+    }
+
+    const novosInsumos = produtosFaltantes.map(p => ({
       nome_produto: p.nome,
       categoria: p.categoria,
       unidade_medida: p.setor === 'bar' ? 'Unidade' : 'Porção', 
@@ -224,9 +237,9 @@ export default function AdminDashboard() {
 
     const { error } = await supabase.from('estoque').insert(novosInsumos);
     if (error) {
-      alert("Erro ao importar. Verifique se a tabela estoque foi criada.");
+      alert("Erro ao sincronizar. Verifique sua conexão com o banco.");
     } else {
-      alert("Produtos importados com sucesso!");
+      alert(`${produtosFaltantes.length} novos produtos foram adicionados ao estoque!`);
       buscarEstoque();
     }
   };
@@ -311,9 +324,11 @@ export default function AdminDashboard() {
                 <Download className="w-5 h-5" /> Exportar 
               </button>
             )}
-            {abaAtiva === 'estoque' && estoque.length === 0 && (
-              <button onClick={importarCardapioParaEstoque} className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95 w-full md:w-auto"> 
-                <RefreshCw className="w-5 h-5" /> Importar do Cardápio 
+            
+            {/* Botão de Sincronizar Estoque Sempre Visível */}
+            {abaAtiva === 'estoque' && (
+              <button onClick={sincronizarEstoque} className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95 w-full md:w-auto"> 
+                <RefreshCw className="w-5 h-5" /> Sincronizar Novos Produtos 
               </button>
             )}
           </div>
@@ -462,7 +477,7 @@ export default function AdminDashboard() {
                <div className="text-center p-10 text-gray-500">
                  <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                  <p className="font-bold text-lg">Estoque Vazio</p>
-                 <p>Clique no botão "Importar do Cardápio" para puxar seus itens.</p>
+                 <p>Clique no botão "Sincronizar Novos Produtos" para puxar seus itens.</p>
                </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 overflow-x-auto">
