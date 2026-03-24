@@ -58,6 +58,14 @@ export default function GarcomApp() {
   const [pontoCarne, setPontoCarne] = useState('');
 
   // =====================================================
+  // ESTADOS DO ITEM AVULSO (NOVO)
+  // =====================================================
+  const [modalAvulsoAberto, setModalAvulsoAberto] = useState(false);
+  const [avulsoNome, setAvulsoNome] = useState('');
+  const [avulsoPreco, setAvulsoPreco] = useState('');
+  const [avulsoSetor, setAvulsoSetor] = useState<'cozinha' | 'bar'>('cozinha');
+
+  // =====================================================
   // VERIFICAÇÃO DE LOGIN
   // =====================================================
   useEffect(() => {
@@ -95,7 +103,7 @@ export default function GarcomApp() {
     const carregarMesasAbertas = async () => {
       const { data, error } = await supabase
         .from('pedidos')
-        .select('mesa, itens')
+        .select('id, mesa, itens') // Adicionado o ID para podermos editar depois
         .neq('status', 'finalizado');
 
       if (data && !error) {
@@ -232,6 +240,27 @@ export default function GarcomApp() {
     });
   };
 
+  // --- LÓGICA DO PRODUTO AVULSO (NOVO) ---
+  const handleAdicionarAvulso = () => {
+    if (!avulsoNome || !avulsoPreco) return;
+    const precoFloat = parseFloat(avulsoPreco.replace(',', '.'));
+    
+    const novoProduto: ItemPedido = {
+      uid: Math.random().toString(36).substr(2, 9),
+      idProduto: `avulso-${Math.random()}`,
+      nome: `* ${avulsoNome}`, // O asterisco ajuda a cozinha a ver que é avulso
+      preco: isNaN(precoFloat) ? 0 : precoFloat,
+      quantidade: 1,
+      observacao: '',
+      setor: avulsoSetor
+    };
+
+    setCarrinho(prev => [...prev, novoProduto]);
+    setModalAvulsoAberto(false);
+    setAvulsoNome('');
+    setAvulsoPreco('');
+  };
+
   const removerDoMenu = (idFinal: string) => {
     setCarrinho((prev) => {
       const itensDesseTipo = prev.filter(i => i.idProduto === idFinal);
@@ -306,37 +335,70 @@ export default function GarcomApp() {
     setModalAcomp(null);
   };
 
-  const alterarQuantidadeComanda = (uid: string, delta: number) => {
+  // =====================================================
+  // BUG FANTASMA CORRIGIDO: Exclusão real no Supabase
+  // =====================================================
+  const removerItemInteiroComanda = async (uid: string) => {
     if (!mesaAtiva) return;
+    
+    // 1. Atualiza a tela imediatamente para o garçom
     setComandasPorMesa((prev) => {
       const comandaAtual = prev[mesaAtiva] || [];
-      const item = comandaAtual.find(i => i.uid === uid);
-      if (!item) return prev;
-      const novaQtd = item.quantidade + delta;
-      if (novaQtd <= 0) {
-        if (window.confirm(`Deseja cancelar totalmente ${item.nome}?`)) {
-          return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
-        }
-        return prev;
-      }
-      return { ...prev, [mesaAtiva]: comandaAtual.map(i => i.uid === uid ? { ...i, quantidade: novaQtd } : i) };
-    });
-  };
-
-  const removerItemInteiroComanda = (uid: string) => {
-    if (!mesaAtiva) return;
-    setComandasPorMesa((prev) => {
-      const comandaAtual = prev[mesaAtiva] || [];
-      const item = comandaAtual.find(i => i.uid === uid);
       return { ...prev, [mesaAtiva]: comandaAtual.filter(i => i.uid !== uid) };
     });
+
+    // 2. Apaga de verdade do Banco de Dados para a cozinha e para sempre
+    const { data } = await supabase.from('pedidos').select('*').eq('mesa', mesaAtiva).neq('status', 'finalizado');
+    if (data) {
+      for (const pedido of data) {
+        if (pedido.itens && pedido.itens.some((i: any) => i.uid === uid)) {
+          const novosItens = pedido.itens.filter((i: any) => i.uid !== uid);
+          if (novosItens.length === 0) {
+            await supabase.from('pedidos').delete().eq('id', pedido.id); // Se era o único item, apaga o pedido todo
+          } else {
+            await supabase.from('pedidos').update({ itens: novosItens }).eq('id', pedido.id); // Senão, atualiza a lista
+          }
+        }
+      }
+    }
+  };
+
+  const alterarQuantidadeComanda = async (uid: string, delta: number) => {
+    if (!mesaAtiva) return;
+    
+    const comandaAtual = comandasPorMesa[mesaAtiva] || [];
+    const item = comandaAtual.find(i => i.uid === uid);
+    if (!item) return;
+
+    const novaQtd = item.quantidade + delta;
+    if (novaQtd <= 0) {
+      if (window.confirm(`Deseja cancelar totalmente ${item.nome}?`)) {
+        removerItemInteiroComanda(uid);
+      }
+      return;
+    }
+
+    // 1. Atualiza a tela imediatamente
+    setComandasPorMesa((prev) => {
+      return { ...prev, [mesaAtiva]: comandaAtual.map(i => i.uid === uid ? { ...i, quantidade: novaQtd } : i) };
+    });
+
+    // 2. Atualiza a quantidade no banco de dados para a cozinha
+    const { data } = await supabase.from('pedidos').select('*').eq('mesa', mesaAtiva).neq('status', 'finalizado');
+    if (data) {
+      for (const pedido of data) {
+        if (pedido.itens && pedido.itens.some((i: any) => i.uid === uid)) {
+          const novosItens = pedido.itens.map((i: any) => i.uid === uid ? { ...i, quantidade: novaQtd } : i);
+          await supabase.from('pedidos').update({ itens: novosItens }).eq('id', pedido.id);
+        }
+      }
+    }
   };
 
   // --- ENVIO SIMPLIFICADO E UNIFICADO ---
   const enviarParaCozinha = async () => {
     if (carrinho.length === 0 || !mesaAtiva) return;
     
-    // Envia tudo (bebida e comida) para a tabela 'pedidos' num único insert
     const { error } = await supabase.from('pedidos').insert([{ 
       mesa: mesaAtiva, 
       status: 'pendente', 
@@ -441,7 +503,7 @@ export default function GarcomApp() {
              <h1 className="text-3xl font-black text-gray-900 flex items-center gap-2">
                 <UtensilsCrossed className="w-8 h-8 text-orange-600" /> Salão
              </h1>
-             <p className="text-gray-600 font-medium mt-1">Garçom: {session.user.email}</p>
+             <p className="text-gray-600 font-medium mt-1">Garçom: {session?.user?.email}</p>
            </div>
            <button onClick={fazerLogout} className="text-sm font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">Sair</button>
         </div>
@@ -524,8 +586,9 @@ export default function GarcomApp() {
           </button>
         </div>
 
-        <div className="px-4 pb-2">
-          <div className="relative">
+        {/* BARRA DE PESQUISA COM BOTÃO AVULSO */}
+        <div className="px-4 pb-2 flex gap-2">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
@@ -535,6 +598,12 @@ export default function GarcomApp() {
               className="w-full bg-gray-100 border border-gray-300 text-gray-800 font-medium pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
             />
           </div>
+          <button 
+            onClick={() => setModalAvulsoAberto(true)} 
+            className="bg-gray-900 text-white px-4 rounded-xl font-bold flex items-center justify-center shadow-sm hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-1" /> Avulso
+          </button>
         </div>
 
         <div className="flex overflow-x-auto p-3 gap-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -604,6 +673,57 @@ export default function GarcomApp() {
           <p className="text-center text-gray-500 font-medium py-10">Nenhum produto encontrado.</p>
         )}
       </div>
+
+      {/* MODAL DE PRODUTO AVULSO */}
+      {modalAvulsoAberto && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="font-black text-xl text-gray-900">Item Avulso</h3>
+              <button onClick={() => setModalAvulsoAberto(false)} className="p-2 bg-gray-200 rounded-full text-gray-800 hover:bg-gray-300 transition-colors"><XCircle className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">O que foi pedido?</label>
+                <input 
+                  type="text" 
+                  value={avulsoNome} 
+                  onChange={e => setAvulsoNome(e.target.value)} 
+                  placeholder="Ex: Cerveja Extra" 
+                  className="w-full bg-gray-50 border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Preço Unitário (R$)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={avulsoPreco} 
+                  onChange={e => setAvulsoPreco(e.target.value)} 
+                  placeholder="Ex: 15.90" 
+                  className="w-full bg-gray-50 border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Tipo de Produto</label>
+                <select 
+                  value={avulsoSetor} 
+                  onChange={e => setAvulsoSetor(e.target.value as 'cozinha' | 'bar')} 
+                  className="w-full bg-gray-50 border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold"
+                >
+                  <option value="cozinha">Comida (Aparece na Cozinha)</option>
+                  <option value="bar">Bebida / Outros (Só no Caixa)</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-200 bg-gray-50">
+              <button onClick={handleAdicionarAvulso} className="w-full p-4 bg-gray-900 text-white font-black text-lg rounded-xl shadow-lg hover:bg-gray-800 transition-colors">
+                Adicionar ao Carrinho
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE ACOMPANHAMENTOS E PONTO DA CARNE */}
       {modalAcomp && (
