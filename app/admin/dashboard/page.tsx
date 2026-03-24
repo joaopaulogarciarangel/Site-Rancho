@@ -82,11 +82,13 @@ export default function AdminDashboard() {
   };
 
   const buscarPedidosAtivos = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('pedidos')
       .select('*')
       .neq('status', 'finalizado')
-      .order('criado_em', { ascending: false });
+      .order('created_at', { ascending: false }); // O ERRO ESTAVA AQUI: Mudei para created_at
+
+    if (error) console.error("Erro ao buscar pedidos da cozinha:", error);
     if (data) setPedidosAtivos(data);
   };
 
