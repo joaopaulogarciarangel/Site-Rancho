@@ -7,7 +7,7 @@ import {
   LogOut, LayoutDashboard, Package, TrendingUp, CloudRain, 
   CalendarClock, Download, Trash2, Plus, Minus, 
   RefreshCw, ReceiptText, XCircle, Target, 
-  PieChart, BarChart3, Sun, Umbrella
+  PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -18,10 +18,12 @@ export default function AdminDashboard() {
   const [vendaExpandida, setVendaExpandida] = useState<any>(null);
   const [estoque, setEstoque] = useState<any[]>([]);
   
+  // NOVO: Estado para monitorar o que está rolando na cozinha
+  const [pedidosAtivos, setPedidosAtivos] = useState<any[]>([]); 
+  
   const [filtroTempo, setFiltroTempo] = useState('hoje'); 
   const [metaDiaria, setMetaDiaria] = useState(3000);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const metaSalva = localStorage.getItem('gestor_meta');
     if (metaSalva) setMetaDiaria(Number(metaSalva));
@@ -34,10 +36,12 @@ export default function AdminDashboard() {
         setUser(session.user);
         buscarHistorico();
         buscarEstoque();
+        buscarPedidosAtivos();
       }
     };
     checkUser();
 
+    // Inscrições de Tempo Real
     const channelVendas = supabase
       .channel('mudancas-vendas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas_historico' }, () => buscarHistorico())
@@ -48,9 +52,16 @@ export default function AdminDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'estoque' }, () => buscarEstoque())
       .subscribe();
 
+    // NOVO: Escuta as mudanças da tabela de pedidos da cozinha
+    const channelPedidos = supabase
+      .channel('mudancas-pedidos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => buscarPedidosAtivos())
+      .subscribe(); 
+
     return () => { 
       supabase.removeChannel(channelVendas); 
       supabase.removeChannel(channelEstoque); 
+      supabase.removeChannel(channelPedidos);
     };
   }, []);
 
@@ -68,6 +79,25 @@ export default function AdminDashboard() {
   const buscarEstoque = async () => {
     const { data } = await supabase.from('estoque').select('*').order('nome_produto', { ascending: true });
     if (data) setEstoque(data);
+  };
+
+  const buscarPedidosAtivos = async () => {
+    const { data } = await supabase
+      .from('pedidos')
+      .select('*')
+      .neq('status', 'finalizado')
+      .order('criado_em', { ascending: false });
+    if (data) setPedidosAtivos(data);
+  };
+
+  // NOVO: Forçar exclusão de um pedido pela tela do Gestor
+  const forcarExclusaoPedido = async (id: number) => {
+    if (!window.confirm("Atenção Gestor: Tem certeza que deseja apagar este pedido da cozinha à força?")) return;
+    
+    // Atualização otimista
+    setPedidosAtivos(prev => prev.filter(p => p.id !== id));
+    // Remove do banco
+    await supabase.from('pedidos').delete().eq('id', id);
   };
 
   // ==========================================
@@ -115,12 +145,10 @@ export default function AdminDashboard() {
     return acc;
   }, {} as Record<string, number>);
   
-  // FIX TYPESCRIPT: Forçando a tipagem para o Object.entries
   const top5Produtos = (Object.entries(contagemProdutos) as [string, number][])
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  // Clima vs Vendas - Faturamento Médio Diário
   const analiseClima = vendas.reduce((acc, v) => {
     const clima = v.clima_condicao || 'Não Informado';
     if (!acc[clima]) acc[clima] = { faturamento: 0, dias: new Set<string>() };
@@ -215,10 +243,7 @@ export default function AdminDashboard() {
   const sincronizarEstoque = async () => {
     if (!window.confirm("Isso vai procurar produtos novos no cardápio e adicionar ao estoque. Continuar?")) return;
     
-    // Lista apenas os nomes do que já existe no Supabase
     const nomesNoBanco = estoque.map(e => e.nome_produto);
-    
-    // Filtra o cardapio.ts para encontrar quem ainda não está no banco
     const produtosFaltantes = PRODUTOS.filter(p => !nomesNoBanco.includes(p.nome));
 
     if (produtosFaltantes.length === 0) {
@@ -268,13 +293,27 @@ export default function AdminDashboard() {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setAbaAtiva('resumo')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'resumo' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}> <LayoutDashboard className="w-5 h-5" /> Visão Geral</button>
-          <button onClick={() => setAbaAtiva('historico')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}> <TrendingUp className="w-5 h-5" /> Histórico de Vendas</button>
-          <button onClick={() => setAbaAtiva('estoque')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'estoque' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}> <Package className="w-5 h-5" /> Controle de Estoque</button>
+          <button onClick={() => setAbaAtiva('resumo')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'resumo' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
+            <LayoutDashboard className="w-5 h-5" /> Visão Geral
+          </button>
+          
+          <button onClick={() => setAbaAtiva('operacao')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'operacao' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
+            <Activity className="w-5 h-5" /> Operação ao Vivo
+          </button>
+
+          <button onClick={() => setAbaAtiva('historico')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
+            <TrendingUp className="w-5 h-5" /> Histórico de Vendas
+          </button>
+
+          <button onClick={() => setAbaAtiva('estoque')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'estoque' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
+            <Package className="w-5 h-5" /> Controle de Estoque
+          </button>
         </nav>
 
         <div className="p-4 border-t border-gray-800">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-bold transition-all"> <LogOut className="w-5 h-5" /> Sair </button>
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl font-bold transition-all">
+            <LogOut className="w-5 h-5" /> Sair
+          </button>
         </div>
       </aside>
 
@@ -284,10 +323,17 @@ export default function AdminDashboard() {
           <LayoutDashboard className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Painel</span>
         </button>
+
+        <button onClick={() => setAbaAtiva('operacao')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'operacao' ? 'text-orange-500' : 'text-gray-400'}`}>
+          <Activity className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-bold">Salão</span>
+        </button>
+
         <button onClick={() => setAbaAtiva('historico')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'historico' ? 'text-orange-500' : 'text-gray-400'}`}>
           <TrendingUp className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Vendas</span>
         </button>
+
         <button onClick={() => setAbaAtiva('estoque')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'estoque' ? 'text-orange-500' : 'text-gray-400'}`}>
           <Package className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Estoque</span>
@@ -300,6 +346,7 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-3xl font-black text-gray-900">
               {abaAtiva === 'resumo' && 'Visão Geral do Negócio'}
+              {abaAtiva === 'operacao' && 'Monitoramento do Salão'}
               {abaAtiva === 'historico' && 'Histórico de Vendas'}
               {abaAtiva === 'estoque' && 'Controle de Estoque'}
             </h2>
@@ -325,7 +372,6 @@ export default function AdminDashboard() {
               </button>
             )}
             
-            {/* Botão de Sincronizar Estoque Sempre Visível */}
             {abaAtiva === 'estoque' && (
               <button onClick={sincronizarEstoque} className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95 w-full md:w-auto"> 
                 <RefreshCw className="w-5 h-5" /> Sincronizar Novos Produtos 
@@ -334,6 +380,68 @@ export default function AdminDashboard() {
           </div>
         </header>
 
+        {/* ==========================================
+            ABA: OPERAÇÃO AO VIVO
+            ========================================== */}
+        {abaAtiva === 'operacao' && (
+          <div className="space-y-6">
+            <p className="text-gray-600 font-medium">
+              Controle total sobre as comandas que estão ativas na cozinha neste exato momento.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {pedidosAtivos.map(pedido => (
+                <div key={pedido.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                  
+                  {/* Cabeçalho do Card */}
+                  <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h4 className="font-black text-xl text-gray-900">Mesa {pedido.mesa}</h4>
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider 
+                      ${pedido.status === 'pronto' ? 'bg-green-100 text-green-700' : 
+                        pedido.status === 'preparando' ? 'bg-orange-100 text-orange-700' : 
+                        'bg-gray-200 text-gray-700'}`}
+                    >
+                      {pedido.status}
+                    </span>
+                  </div>
+                  
+                  {/* Itens do Pedido */}
+                  <div className="p-4 flex-1">
+                    <ul className="space-y-2 mb-4">
+                      {pedido.itens && pedido.itens.map((item: any, idx: number) => (
+                        <li key={idx} className="text-sm font-bold text-gray-800 flex justify-between">
+                          <span>{item.quantidade}x {item.nome}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  {/* Botão de Ação */}
+                  <div className="p-3 bg-gray-50 border-t border-gray-200">
+                    <button 
+                      onClick={() => forcarExclusaoPedido(pedido.id)} 
+                      className="w-full py-3 bg-red-100 text-red-600 font-black rounded-xl hover:bg-red-200 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-5 h-5"/> Forçar Exclusão
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Mensagem se não houver pedidos */}
+              {pedidosAtivos.length === 0 && (
+                <div className="col-span-full p-10 text-center bg-white border border-gray-200 rounded-2xl">
+                  <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-bold text-lg">Nenhum pedido rolando no salão no momento.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+            ABA: VISÃO GERAL (BI)
+            ========================================== */}
         {abaAtiva === 'resumo' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -471,6 +579,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ==========================================
+            ABA: ESTOQUE
+            ========================================== */}
         {abaAtiva === 'estoque' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
             {estoque.length === 0 ? (
@@ -552,6 +663,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ==========================================
+            ABA: HISTÓRICO DE VENDAS
+            ========================================== */}
         {abaAtiva === 'historico' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-4 md:p-6 shadow-sm">
             <div className="overflow-x-auto">
