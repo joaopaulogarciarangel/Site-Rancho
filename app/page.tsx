@@ -306,7 +306,7 @@ export default function GarcomApp() {
   const totalAcompSelecionados = Object.values(selecaoAcomp).reduce((a, b) => a + b, 0);
 
   const incrementarAcomp = (nome: string) => {
-    if (totalAcompSelecionados >= 4) return;
+    // REMOVIDO O LIMITE DE 4 ITENS
     setSelecaoAcomp(prev => ({ ...prev, [nome]: (prev[nome] || 0) + 1 }));
   };
 
@@ -759,7 +759,7 @@ export default function GarcomApp() {
               )}
 
               <div className="p-4 space-y-2">
-                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (Até 4 opções)</h4>
+                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (Sem limite de cortesias)</h4>
                 {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
                   const qtdSelecionada = selecaoAcomp[acomp] || 0;
                   return (
@@ -768,7 +768,7 @@ export default function GarcomApp() {
                       <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
                         <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
                         <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
-                        <button onClick={() => incrementarAcomp(acomp)} className={`p-1.5 rounded ${totalAcompSelecionados < 4 ? 'bg-white text-gray-900 shadow-sm active:scale-95' : 'text-gray-400'}`} disabled={totalAcompSelecionados >= 4}><Plus className="w-5 h-5" /></button>
+                        <button onClick={() => incrementarAcomp(acomp)} className="p-1.5 rounded bg-white text-gray-900 shadow-sm active:scale-95"><Plus className="w-5 h-5" /></button>
                       </div>
                     </div>
                   );
@@ -779,7 +779,7 @@ export default function GarcomApp() {
             <div className="p-5 bg-white border-t border-gray-200">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-gray-700 font-bold">Acomps. Selecionados:</span>
-                <span className={`font-black text-xl ${totalAcompSelecionados === 4 ? 'text-green-600' : 'text-orange-600'}`}>{totalAcompSelecionados} / 4</span>
+                <span className="font-black text-xl text-orange-600">{totalAcompSelecionados} itens</span>
               </div>
               
               <button 
