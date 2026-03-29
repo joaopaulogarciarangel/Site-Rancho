@@ -759,7 +759,7 @@ export default function GarcomApp() {
               )}
 
               <div className="p-4 space-y-2">
-                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (Sem limite de cortesias)</h4>
+                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (4 Acompanhamentos)</h4>
                 {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
                   const qtdSelecionada = selecaoAcomp[acomp] || 0;
                   return (
