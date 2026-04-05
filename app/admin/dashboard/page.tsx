@@ -20,8 +20,14 @@ export default function AdminDashboard() {
   
   const [pedidosAtivos, setPedidosAtivos] = useState<any[]>([]); 
   
-  // NOVO: Estado para controlar os botões de duas etapas (Feito -> Remover)
-  // Guarda o status de cada "metade" do pedido. Ex: { 'coz-12': 'feito', 'bar-12': 'removido' }
+  // Estados para a aba de Fechamento (Caixa)
+  const [comandasCaixa, setComandasCaixa] = useState<Record<number, any[]>>({});
+  const [mesasAguardando, setMesasAguardando] = useState<number[]>([]);
+  const [mesaSelecionadaCaixa, setMesaSelecionadaCaixa] = useState<number | null>(null);
+  const [incluirTaxa, setIncluirTaxa] = useState(true);
+  const [formaPagamentoCaixa, setFormaPagamentoCaixa] = useState('PIX');
+
+  // Estado para controlar os botões de duas etapas (Feito -> Remover) na Operação ao Vivo
   const [statusPartes, setStatusPartes] = useState<Record<string, string>>({});
 
   const [filtroTempo, setFiltroTempo] = useState('hoje'); 
@@ -87,10 +93,67 @@ export default function AdminDashboard() {
       .from('pedidos')
       .select('*')
       .neq('status', 'finalizado')
+      .neq('status', 'entregue') // Garante que pedidos já entregues na mesa não apareçam na cozinha
       .order('created_at', { ascending: false });
 
     if (error) console.error("Erro ao buscar pedidos:", error);
     if (data) setPedidosAtivos(data);
+  };
+
+  // Função para a aba de Fechamento (Caixa)
+  useEffect(() => {
+    if (abaAtiva === 'fechamento') {
+      const carregarMesasCaixa = async () => {
+        const { data } = await supabase.from('pedidos').select('*').neq('status', 'finalizado');
+        if (data) {
+          const comandasAgrupadas: Record<number, any[]> = {};
+          const aguardando: number[] = [];
+          
+          data.forEach((pedido) => {
+            const numero = pedido.mesa;
+            if (!comandasAgrupadas[numero]) comandasAgrupadas[numero] = [];
+            if (pedido.itens) comandasAgrupadas[numero].push(...pedido.itens);
+            // Se algum pedido da mesa estiver como 'entregue' ou o garçom pediu a conta, marca como aguardando
+            if (pedido.status === 'entregue' && !aguardando.includes(numero)) aguardando.push(numero);
+          });
+          setComandasCaixa(comandasAgrupadas);
+          // Por enquanto, mostramos todas as mesas ocupadas como aguardando para facilitar o teste
+          setMesasAguardando(Object.keys(comandasAgrupadas).map(Number));
+        }
+      };
+      carregarMesasCaixa();
+    }
+  }, [abaAtiva, pedidosAtivos]);
+
+  const encerrarMesaCaixa = async () => {
+    if (!mesaSelecionadaCaixa) return;
+    if (!window.confirm(`Confirmar o encerramento e pagamento da Mesa ${mesaSelecionadaCaixa}?`)) return;
+
+    const itensConsumidos = comandasCaixa[mesaSelecionadaCaixa] || [];
+    const subtotal = itensConsumidos.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
+    const totalFinal = incluirTaxa ? subtotal * 1.1 : subtotal;
+
+    try {
+      // 1. Salvar no Histórico
+      await supabase.from('vendas_historico').insert([{
+        mesa: mesaSelecionadaCaixa, 
+        itens: itensConsumidos, 
+        valor_total: totalFinal, 
+        forma_pagamento: formaPagamentoCaixa
+      }]);
+
+      // 2. Finalizar no banco de dados para limpar a mesa
+      await supabase.from('pedidos').update({ status: 'finalizado' }).eq('mesa', mesaSelecionadaCaixa);
+      
+      // Limpar a tela
+      setMesaSelecionadaCaixa(null);
+      buscarPedidosAtivos(); 
+      alert(`Mesa ${mesaSelecionadaCaixa} encerrada com sucesso!`);
+      
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao encerrar a mesa.");
+    }
   };
 
   const forcarExclusaoPedido = async (id: number) => {
@@ -100,7 +163,7 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // NOVAS FUNÇÕES DO FLUXO: FEITO -> REMOVER
+  // FUNÇÕES DO FLUXO: FEITO -> REMOVER
   // ==========================================
   const marcarComoFeito = (chave: string) => {
     setStatusPartes(prev => ({ ...prev, [chave]: 'feito' }));
@@ -116,7 +179,7 @@ export default function AdminDashboard() {
       
       if (cozRemovida && barRemovido) {
         setPedidosAtivos(lista => lista.filter(p => p.id !== pedidoId));
-        // ALTERAÇÃO: Muda para 'entregue' para o pedido continuar existindo na conta da mesa
+        // Status muda para 'entregue' para manter na comanda, mas sumir da cozinha
         supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId).then();
       }
       return newState;
@@ -124,7 +187,7 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // FILTRAGEM E BI (Mantido igual)
+  // FILTRAGEM E BI
   // ==========================================
   const vendasFiltradas = vendas.filter(v => {
     if (filtroTempo === 'tudo') return true;
@@ -171,7 +234,6 @@ export default function AdminDashboard() {
     return acc;
   }, {} as Record<string, { faturamento: number, dias: Set<string> }>);
 
-  // AÇÕES DO HISTÓRICO
   const atualizarClimaEmLote = async (condicao: string, dataIso: string) => {
     const dataAlvo = new Date(dataIso);
     const inicioDia = new Date(dataAlvo.setHours(0, 0, 0, 0)).toISOString();
@@ -197,9 +259,23 @@ export default function AdminDashboard() {
     setVendas(prev => prev.filter(v => v.id !== id));
     await supabase.from('vendas_historico').delete().eq('id', id);
   };
-  const exportarCSV = () => { /* Mantido */ };
+  
+  const exportarCSV = () => {
+    if (vendasFiltradas.length === 0) return alert("Nenhum dado para exportar neste período.");
+    const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Valor Total", "Itens Consumidos"];
+    const linhas = vendasFiltradas.map(v => {
+      const data = new Date(v.criado_em).toLocaleDateString('pt-BR');
+      const hora = new Date(v.criado_em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+      const itensFormatados = v.itens && Array.isArray(v.itens) ? v.itens.map((i: any) => `${i.quantidade}x ${i.nome}`).join(' - ') : 'Sem registro';
+      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', Number(v.valor_total).toFixed(2).replace('.', ','), `"${itensFormatados}"`].join(';');
+    });
+    const blob = new Blob(["\uFEFF" + [cabecalho.join(';'), ...linhas].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `vendas_${filtroTempo}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
 
-  // LÓGICAS DE ESTOQUE
   const alterarQuantidadeEstoque = async (id: string | number, delta: number) => {
     const item = estoque.find(e => e.id === id);
     if (!item) return;
@@ -216,7 +292,18 @@ export default function AdminDashboard() {
     setEstoque(prev => prev.map(e => e.id === id ? { ...e, status: novoStatus } : e));
     await supabase.from('estoque').update({ status: novoStatus }).eq('id', id);
   };
-  const sincronizarEstoque = async () => { /* Mantido */ };
+  const sincronizarEstoque = async () => {
+    if (!window.confirm("Isso vai procurar produtos novos no cardápio e adicionar ao estoque. Continuar?")) return;
+    const nomesNoBanco = estoque.map(e => e.nome_produto);
+    const produtosFaltantes = PRODUTOS.filter(p => !nomesNoBanco.includes(p.nome));
+    if (produtosFaltantes.length === 0) return alert("O seu estoque já está 100% atualizado com o cardápio!");
+    const novosInsumos = produtosFaltantes.map(p => ({
+      nome_produto: p.nome, categoria: p.categoria, unidade_medida: p.setor === 'bar' ? 'Unidade' : 'Porção', quantidade_atual: 0, estoque_minimo: p.setor === 'bar' ? 24 : 10, custo_unitario: 0
+    }));
+    const { error } = await supabase.from('estoque').insert(novosInsumos);
+    if (error) alert("Erro ao sincronizar. Verifique sua conexão com o banco.");
+    else { alert(`${produtosFaltantes.length} novos produtos foram adicionados ao estoque!`); buscarEstoque(); }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -248,7 +335,7 @@ export default function AdminDashboard() {
             <Activity className="w-5 h-5" /> Operação ao Vivo
           </button>
           <button onClick={() => setAbaAtiva('fechamento')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'fechamento' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
-            <ReceiptText className="w-5 h-5" /> Fechar Conta
+            <ReceiptText className="w-5 h-5" /> Fechamento (Caixa)
           </button>
           <button onClick={() => setAbaAtiva('historico')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
             <TrendingUp className="w-5 h-5" /> Histórico de Vendas
@@ -278,10 +365,6 @@ export default function AdminDashboard() {
           <ReceiptText className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Caixa</span>
         </button>
-        <button onClick={() => setAbaAtiva('historico')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'historico' ? 'text-orange-500' : 'text-gray-400'}`}>
-          <TrendingUp className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-bold">Vendas</span>
-        </button>
         <button onClick={() => setAbaAtiva('estoque')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'estoque' ? 'text-orange-500' : 'text-gray-400'}`}>
           <Package className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Estoque</span>
@@ -295,6 +378,7 @@ export default function AdminDashboard() {
             <h2 className="text-3xl font-black text-gray-900">
               {abaAtiva === 'resumo' && 'Visão Geral do Negócio'}
               {abaAtiva === 'operacao' && 'Monitoramento do Salão'}
+              {abaAtiva === 'fechamento' && 'Caixa do Restaurante'}
               {abaAtiva === 'historico' && 'Histórico de Vendas'}
               {abaAtiva === 'estoque' && 'Controle de Estoque'}
             </h2>
@@ -355,26 +439,21 @@ export default function AdminDashboard() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {pedidosAtivos.map(pedido => {
-                      // Substitua os filtros atuais por estes:
                       const itensCozinha = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        // Cozinha recebe tudo que NÃO é do setor bar, OU que explicitamente seja a categoria de Sobremesas
-                        return infoProduto?.setor !== 'bar' || infoProduto?.categoria?.toLowerCase().includes('sobremesa');
+                        // Filtro: Tudo que NÃO é bar, OU que a categoria seja explícita 'Sobremesas'
+                        return infoProduto?.setor !== 'bar' || infoProduto?.categoria === 'Sobremesas';
                       }) || [];
-
                       const itensBar = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        // Bar recebe APENAS se for setor bar E não for categoria Sobremesa
-                        return infoProduto?.setor === 'bar' && !infoProduto?.categoria?.toLowerCase().includes('sobremesa');
+                        return infoProduto?.setor === 'bar' && infoProduto?.categoria !== 'Sobremesas';
                       }) || [];
 
                       const temCozinha = itensCozinha.length > 0;
                       const temBar = itensBar.length > 0;
                       const chaveCoz = `coz-${pedido.id}`;
 
-                      // Se não tem item de cozinha OU se o card da cozinha já foi removido, não mostra nada aqui
                       if (!temCozinha || statusPartes[chaveCoz] === 'removido') return null;
-
                       const isFeito = statusPartes[chaveCoz] === 'feito';
 
                       return (
@@ -385,7 +464,6 @@ export default function AdminDashboard() {
                               {isFeito ? 'Aguardando Garçom' : 'Comida'}
                             </span>
                           </div>
-                          
                           <div className="p-4 flex-1">
                             <ul className="space-y-3">
                               {itensCozinha.map((item: any, idx: number) => (
@@ -399,7 +477,6 @@ export default function AdminDashboard() {
                               ))}
                             </ul>
                           </div>
-                          
                           <div className="p-3 bg-gray-50 flex gap-2">
                             {isFeito ? (
                               <button onClick={() => removerParte(chaveCoz, pedido.id, temCozinha, temBar)} className="flex-1 py-3 bg-gray-800 text-white font-black rounded-xl hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
@@ -428,20 +505,18 @@ export default function AdminDashboard() {
                     {pedidosAtivos.map(pedido => {
                       const itensCozinha = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        return infoProduto?.setor !== 'bar';
+                        return infoProduto?.setor !== 'bar' || infoProduto?.categoria === 'Sobremesas';
                       }) || [];
                       const itensBar = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        return infoProduto?.setor === 'bar';
+                        return infoProduto?.setor === 'bar' && infoProduto?.categoria !== 'Sobremesas';
                       }) || [];
 
                       const temCozinha = itensCozinha.length > 0;
                       const temBar = itensBar.length > 0;
                       const chaveBar = `bar-${pedido.id}`;
 
-                      // Se não tem item de bar OU se o card do bar já foi removido, não mostra nada aqui
                       if (!temBar || statusPartes[chaveBar] === 'removido') return null;
-
                       const isFeito = statusPartes[chaveBar] === 'feito';
 
                       return (
@@ -452,7 +527,6 @@ export default function AdminDashboard() {
                               {isFeito ? 'Aguardando Garçom' : 'Bebida'}
                             </span>
                           </div>
-                          
                           <div className="p-4 flex-1">
                             <ul className="space-y-3">
                               {itensBar.map((item: any, idx: number) => (
@@ -465,7 +539,6 @@ export default function AdminDashboard() {
                               ))}
                             </ul>
                           </div>
-                          
                           <div className="p-3 bg-gray-50 flex gap-2">
                             {isFeito ? (
                               <button onClick={() => removerParte(chaveBar, pedido.id, temCozinha, temBar)} className="flex-1 py-3 bg-gray-800 text-white font-black rounded-xl hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
@@ -488,21 +561,100 @@ export default function AdminDashboard() {
           </div>
         )}
 
-                {/* ==========================================
-            ABA: FECHAMENTO DE CONTA
+        {/* ==========================================
+            ABA: FECHAMENTO (CAIXA)
             ========================================== */}
         {abaAtiva === 'fechamento' && (
           <div className="space-y-6">
-            <h3 className="font-black text-2xl text-gray-900">Fechamento e Emissão</h3>
-            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm min-h-[50vh]">
-              {/* O componente do Garçom será renderizado aqui */}
-              <p className="text-gray-500 text-center mt-10">Carregando interface do caixa...</p>
-            </div>
+            
+            {mesaSelecionadaCaixa === null ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((numero) => {
+                  const itensNestaMesa = comandasCaixa[numero] || [];
+                  const mesaOcupada = itensNestaMesa.length > 0;
+                  const aguardandoPagamento = mesasAguardando.includes(numero);
+
+                  return (
+                    <button
+                      key={numero}
+                      disabled={!mesaOcupada}
+                      onClick={() => setMesaSelecionadaCaixa(numero)}
+                      className={`relative border-2 rounded-2xl flex flex-col items-center justify-center p-8 transition-transform
+                        ${!mesaOcupada ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed' 
+                          : aguardandoPagamento ? 'bg-orange-50 border-orange-400 active:scale-95 shadow-md' 
+                          : 'bg-white border-gray-300 active:scale-95'}`}
+                    >
+                      <span className={`text-sm font-bold uppercase tracking-widest mb-1 ${mesaOcupada ? 'text-orange-700' : 'text-gray-500'}`}>Mesa</span>
+                      <span className={`text-4xl font-black ${mesaOcupada ? 'text-gray-900' : 'text-gray-400'}`}>{numero}</span>
+                      {mesaOcupada && <span className="absolute bottom-2 text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">R$ {itensNestaMesa.reduce((a, b) => a + b.preco * b.quantidade, 0).toFixed(2)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm max-w-2xl mx-auto">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+                  <h3 className="font-black text-2xl text-gray-900">Conta da Mesa {mesaSelecionadaCaixa}</h3>
+                  <button onClick={() => setMesaSelecionadaCaixa(null)} className="p-2 bg-gray-100 rounded-full text-gray-800 hover:bg-gray-200">
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2">
+                  {(comandasCaixa[mesaSelecionadaCaixa] || []).map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center border-b border-gray-50 pb-2">
+                      <span className="font-bold text-gray-800">{item.quantidade}x {item.nome}</span>
+                      <span className="font-black text-gray-900">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-4">
+                  <div className="flex justify-between text-gray-600 font-bold">
+                    <span>Subtotal</span>
+                    <span>R$ {(comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0).toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-200 cursor-pointer select-none active:scale-[0.98]" onClick={() => setIncluirTaxa(!incluirTaxa)}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${incluirTaxa ? 'bg-orange-600' : 'bg-gray-200'}`}>
+                        {incluirTaxa && <CheckCircle2 className="w-4 h-4 text-white" />}
+                      </div>
+                      <span className="font-extrabold text-sm text-gray-900">Taxa de Serviço (10%)</span>
+                    </div>
+                    <span className="font-black text-gray-900">
+                      R$ {incluirTaxa ? ((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2) : '0.00'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Forma de Pagamento</label>
+                    <select value={formaPagamentoCaixa} onChange={(e) => setFormaPagamentoCaixa(e.target.value)} className="w-full bg-white border border-gray-300 font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
+                      <option value="PIX">PIX</option>
+                      <option value="Cartão de Crédito">Cartão de Crédito</option>
+                      <option value="Cartão de Débito">Cartão de Débito</option>
+                      <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                    <span className="font-black text-2xl text-gray-900">Total</span>
+                    <span className="font-black text-3xl text-orange-700">
+                      R$ {((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * (incluirTaxa ? 1.1 : 1)).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <button onClick={encerrarMesaCaixa} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black text-xl py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <ReceiptText className="w-6 h-6" /> Encerrar e Liberar Mesa
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ==========================================
-            ABA: VISÃO GERAL (BI) E ESTOQUE (Mantidas iguais)
+            ABA: VISÃO GERAL (BI)
             ========================================== */}
         {abaAtiva === 'resumo' && (
           <div className="space-y-6">
