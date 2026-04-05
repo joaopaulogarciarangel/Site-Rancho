@@ -7,7 +7,8 @@ import {
   LogOut, LayoutDashboard, Package, TrendingUp, CloudRain, 
   CalendarClock, Download, Trash2, Plus, Minus, 
   RefreshCw, ReceiptText, XCircle, Target, 
-  PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2, Check
+  PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2, Check,
+  Search, TrendingDown // <-- Adicione estes dois aqui no final
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -108,6 +109,7 @@ export default function AdminDashboard() {
   { nome: "Papel Toalha Cozinha", categoria: "Descartáveis", unidade: "Pacote" },
   { nome: "Sacola Bobina 20x30", categoria: "Descartáveis", unidade: "Rolo" },
 ];
+  const [buscaEstoque, setBuscaEstoque] = useState('');
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [abaAtiva, setAbaAtiva] = useState('resumo'); 
@@ -313,14 +315,23 @@ export default function AdminDashboard() {
   const contagemProdutos = vendasFiltradas.reduce((acc, v) => {
     if (v.itens && Array.isArray(v.itens)) {
       v.itens.forEach((item: any) => {
-        acc[item.nome] = (acc[item.nome] || 0) + item.quantidade;
+        if (item.nome && item.quantidade > 0) {
+          acc[item.nome] = (acc[item.nome] || 0) + item.quantidade;
+        }
       });
     }
     return acc;
   }, {} as Record<string, number>);
   
-  const top5Produtos = (Object.entries(contagemProdutos) as [string, number][])
+  // Array limpo para não dar erro
+  const produtosContadosArray = Object.entries(contagemProdutos) as [string, number][];
+
+  const top5Produtos = [...produtosContadosArray]
     .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  const top5MenosVendidos = [...produtosContadosArray]
+    .sort((a, b) => a[1] - b[1])
     .slice(0, 5);
 
   const analiseClima = vendas.reduce((acc, v) => {
@@ -424,11 +435,16 @@ export default function AdminDashboard() {
     window.location.href = '/admin/login';
   };
 
-  const estoqueAgrupado = estoque.reduce((acc, item) => {
+  // NOVO: Filtra o estoque antes de agrupar pelas categorias
+  const estoqueFiltrado = buscaEstoque.trim() !== ''
+    ? estoque.filter(item => item.nome_produto.toLowerCase().includes(buscaEstoque.toLowerCase()))
+    : estoque;
+
+  const estoqueAgrupado = estoqueFiltrado.reduce((acc, item) => {
     if (!acc[item.categoria]) acc[item.categoria] = [];
     acc[item.categoria].push(item);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, any[]>)
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-gray-500">A carregar painel...</div>;
 
@@ -817,7 +833,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-1">
                 <h3 className="font-black text-xl text-gray-900 mb-4 flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-orange-600" /> Top 5 Mais Vendidos
@@ -830,6 +846,30 @@ export default function AdminDashboard() {
                       <div key={nome} className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-black ${index === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {index + 1}
+                          </span>
+                          <span className="font-bold text-gray-800 text-sm truncate max-w-[150px]">{nome}</span>
+                        </div>
+                        <span className="font-black text-gray-900">{qtd}x</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* NOVO CARD: Menos Vendidos */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 xl:col-span-1">
+                <h3 className="font-black text-xl text-gray-900 mb-4 flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5 text-red-600" /> Menos Vendidos
+                </h3>
+                {top5MenosVendidos.length === 0 ? (
+                  <p className="text-gray-500 font-medium">Nenhuma venda no período.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {top5MenosVendidos.map(([nome, qtd], index) => (
+                      <div key={nome} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-black bg-gray-100 text-gray-600`}>
                             {index + 1}
                           </span>
                           <span className="font-bold text-gray-800 text-sm truncate max-w-[150px]">{nome}</span>
@@ -901,6 +941,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ==========================================
+            ABA: ESTOQUE
+            ========================================== */}
         {abaAtiva === 'estoque' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
             {estoque.length === 0 ? (
@@ -910,70 +953,84 @@ export default function AdminDashboard() {
                  <p>Clique no botão "Sincronizar Novos Produtos" para puxar seus itens.</p>
                </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-gray-200 overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-900 text-sm uppercase tracking-wider">
-                      <th className="p-4 font-black">Produto</th>
-                      <th className="p-4 font-black text-center">Medida</th>
-                      <th className="p-4 font-black text-center">Quantidade Atual</th>
-                      <th className="p-4 font-black text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Object.entries(estoqueAgrupado) as [string, any[]][]).map(([categoria, itens]) => (
-                      <React.Fragment key={categoria}>
-                        <tr className="bg-gray-100 border-y border-gray-200">
-                          <td colSpan={4} className="p-3 font-black text-gray-900 uppercase tracking-widest text-sm">
-                            <div className="flex items-center gap-3">
-                              <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
-                              {categoria}
-                            </div>
-                          </td>
-                        </tr>
-                        {itens.map((item: any) => (
-                            <tr key={item.id} className="border-b border-gray-100 hover:bg-orange-50/50 transition-colors">
-                              <td className="p-4 font-extrabold text-gray-900">{item.nome_produto}</td>
-                              <td className="p-4 text-center text-sm font-bold text-gray-800">{item.unidade_medida}</td>
-                              <td className="p-4">
-                                <div className="flex items-center justify-center gap-1 md:gap-2">
-                                  <button onClick={() => alterarQuantidadeEstoque(item.id, -1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-red-50 hover:text-red-600 rounded-lg shadow-sm transition-colors active:scale-95"><Minus className="w-4 h-4" /></button>
-                                  <input 
-                                    type="number"
-                                    min="0"
-                                    value={item.quantidade_atual}
-                                    onChange={(e) => {
-                                      const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                      setEstoque(prev => prev.map(el => el.id === item.id ? { ...el, quantidade_atual: val } : el));
-                                    }}
-                                    onBlur={(e) => {
-                                      const val = parseInt(e.target.value);
-                                      definirQuantidadeEstoque(item.id, isNaN(val) ? 0 : val);
-                                    }}
-                                    className="font-black text-xl md:text-2xl w-16 md:w-20 text-center text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-orange-500 focus:outline-none transition-colors"
-                                  />
-                                  <button onClick={() => alterarQuantidadeEstoque(item.id, 1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-green-50 hover:text-green-600 rounded-lg shadow-sm transition-colors active:scale-95"><Plus className="w-4 h-4" /></button>
-                                </div>
-                              </td>
-                              <td className="p-4 text-center">
-                                <select
-                                  value={item.status || 'Adequado'}
-                                  onChange={(e) => atualizarStatusEstoque(item.id, e.target.value)}
-                                  className={`font-black p-2 rounded-full text-[10px] md:text-xs uppercase tracking-wide focus:outline-none cursor-pointer border shadow-sm transition-colors ${
-                                    item.status === 'Repor' ? 'bg-red-200 text-red-900 border-red-300' : 'bg-green-200 text-green-900 border-green-300'
-                                  }`}
-                                >
-                                  <option value="Adequado">OK / Adequado</option>
-                                  <option value="Repor">⚠️ Repor</option>
-                                </select>
-                              </td>
-                            </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {/* NOVO: Barra de Busca do Estoque */}
+                <div className="mb-6 relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Buscar produto no estoque..."
+                    value={buscaEstoque}
+                    onChange={(e) => setBuscaEstoque(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 font-bold pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors shadow-sm"
+                  />
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-gray-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-900 text-sm uppercase tracking-wider">
+                        <th className="p-4 font-black">Produto</th>
+                        <th className="p-4 font-black text-center">Medida</th>
+                        <th className="p-4 font-black text-center">Quantidade Atual</th>
+                        <th className="p-4 font-black text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Object.entries(estoqueAgrupado) as [string, any[]][]).map(([categoria, itens]) => (
+                        <React.Fragment key={categoria}>
+                          <tr className="bg-gray-100 border-y border-gray-200">
+                            <td colSpan={4} className="p-3 font-black text-gray-900 uppercase tracking-widest text-sm">
+                              <div className="flex items-center gap-3">
+                                <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
+                                {categoria}
+                              </div>
+                            </td>
+                          </tr>
+                          {itens.map((item: any) => (
+                              <tr key={item.id} className="border-b border-gray-100 hover:bg-orange-50/50 transition-colors">
+                                <td className="p-4 font-extrabold text-gray-900">{item.nome_produto}</td>
+                                <td className="p-4 text-center text-sm font-bold text-gray-800">{item.unidade_medida}</td>
+                                <td className="p-4">
+                                  <div className="flex items-center justify-center gap-1 md:gap-2">
+                                    <button onClick={() => alterarQuantidadeEstoque(item.id, -1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-red-50 hover:text-red-600 rounded-lg shadow-sm transition-colors active:scale-95"><Minus className="w-4 h-4" /></button>
+                                    <input 
+                                      type="number"
+                                      min="0"
+                                      value={item.quantidade_atual}
+                                      onChange={(e) => {
+                                        const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                        setEstoque(prev => prev.map(el => el.id === item.id ? { ...el, quantidade_atual: val } : el));
+                                      }}
+                                      onBlur={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        definirQuantidadeEstoque(item.id, isNaN(val) ? 0 : val);
+                                      }}
+                                      className="font-black text-xl md:text-2xl w-16 md:w-20 text-center text-gray-900 bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-orange-500 focus:outline-none transition-colors"
+                                    />
+                                    <button onClick={() => alterarQuantidadeEstoque(item.id, 1)} className="p-2 bg-white border border-gray-200 text-gray-900 hover:bg-green-50 hover:text-green-600 rounded-lg shadow-sm transition-colors active:scale-95"><Plus className="w-4 h-4" /></button>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-center">
+                                  <select
+                                    value={item.status || 'Adequado'}
+                                    onChange={(e) => atualizarStatusEstoque(item.id, e.target.value)}
+                                    className={`font-black p-2 rounded-full text-[10px] md:text-xs uppercase tracking-wide focus:outline-none cursor-pointer border shadow-sm transition-colors ${
+                                      item.status === 'Repor' ? 'bg-red-200 text-red-900 border-red-300' : 'bg-green-200 text-green-900 border-green-300'
+                                    }`}
+                                  >
+                                    <option value="Adequado">OK / Adequado</option>
+                                    <option value="Repor">⚠️ Repor</option>
+                                  </select>
+                                </td>
+                              </tr>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
