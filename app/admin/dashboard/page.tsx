@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       .from('pedidos')
       .select('*')
       .neq('status', 'finalizado')
-      .order('created_at', { ascending: false }); // O ERRO ESTAVA AQUI: Mudei para created_at
+      .order('created_at', { ascending: false });
 
     if (error) console.error("Erro ao buscar pedidos da cozinha:", error);
     if (data) setPedidosAtivos(data);
@@ -100,6 +100,24 @@ export default function AdminDashboard() {
     setPedidosAtivos(prev => prev.filter(p => p.id !== id));
     // Remove do banco
     await supabase.from('pedidos').delete().eq('id', id);
+  };
+
+  // NOVO: Função para concluir um pedido e limpar da tela
+  const concluirPedido = async (id: number) => {
+    // Removemos da tela na mesma hora para o gestor não ter que esperar
+    setPedidosAtivos(prev => prev.filter(p => p.id !== id));
+    
+    // Atualiza no banco o status para finalizado
+    const { error } = await supabase
+      .from('pedidos')
+      .update({ status: 'finalizado' })
+      .eq('id', id);
+
+    if (error) {
+      console.error("Erro ao concluir pedido:", error);
+      // Se der erro no banco, chamamos a busca novamente para voltar o card pra tela
+      buscarPedidosAtivos(); 
+    }
   };
 
   // ==========================================
@@ -383,61 +401,128 @@ export default function AdminDashboard() {
         </header>
 
         {/* ==========================================
-            ABA: OPERAÇÃO AO VIVO
+            ABA: OPERAÇÃO AO VIVO (DIVIDIDA)
             ========================================== */}
         {abaAtiva === 'operacao' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <p className="text-gray-600 font-medium">
-              Controle total sobre as comandas que estão ativas na cozinha neste exato momento.
+              Controle o fluxo de saída. O que for marcado como "Feito" sumirá desta tela.
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {pedidosAtivos.map(pedido => (
-                <div key={pedido.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                  
-                  {/* Cabeçalho do Card */}
-                  <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h4 className="font-black text-xl text-gray-900">Mesa {pedido.mesa}</h4>
-                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider 
-                      ${pedido.status === 'pronto' ? 'bg-green-100 text-green-700' : 
-                        pedido.status === 'preparando' ? 'bg-orange-100 text-orange-700' : 
-                        'bg-gray-200 text-gray-700'}`}
-                    >
-                      {pedido.status}
-                    </span>
-                  </div>
-                  
-                  {/* Itens do Pedido */}
-                  <div className="p-4 flex-1">
-                    <ul className="space-y-2 mb-4">
-                      {pedido.itens && pedido.itens.map((item: any, idx: number) => (
-                        <li key={idx} className="text-sm font-bold text-gray-800 flex justify-between">
-                          <span>{item.quantidade}x {item.nome}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  {/* Botão de Ação */}
-                  <div className="p-3 bg-gray-50 border-t border-gray-200">
-                    <button 
-                      onClick={() => forcarExclusaoPedido(pedido.id)} 
-                      className="w-full py-3 bg-red-100 text-red-600 font-black rounded-xl hover:bg-red-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-5 h-5"/> Forçar Exclusão
-                    </button>
-                  </div>
+            {pedidosAtivos.length === 0 ? (
+                <div className="col-span-full p-10 text-center bg-white border border-gray-200 rounded-2xl shadow-sm">
+                  <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                  <p className="text-gray-800 font-black text-xl">Salão zerado!</p>
+                  <p className="text-gray-500 font-medium">Nenhum pedido aguardando preparo no momento.</p>
                 </div>
-              ))}
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                
+                {/* COLUNA: COZINHA E CHURRASQUEIRA */}
+                <div className="bg-orange-50/50 p-4 rounded-3xl border border-orange-100">
+                  <div className="flex items-center gap-3 mb-6 px-2">
+                    <div className="w-3 h-8 bg-orange-600 rounded-full"></div>
+                    <h3 className="font-black text-2xl text-gray-900">Preparo (Cozinha)</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pedidosAtivos.map(pedido => {
+                      // Filtra apenas os itens que não são de bebida
+                      const itensCozinha = pedido.itens?.filter((item: any) => {
+                        const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
+                        return infoProduto?.setor !== 'bar';
+                      }) || [];
 
-              {/* Mensagem se não houver pedidos */}
-              {pedidosAtivos.length === 0 && (
-                <div className="col-span-full p-10 text-center bg-white border border-gray-200 rounded-2xl">
-                  <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-bold text-lg">Nenhum pedido rolando no salão no momento.</p>
+                      if (itensCozinha.length === 0) return null;
+
+                      return (
+                        <div key={`coz-${pedido.id}`} className="bg-white border-2 border-orange-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                          <div className="p-3 bg-orange-500 flex justify-between items-center text-white">
+                            <h4 className="font-black text-xl">Mesa {pedido.mesa}</h4>
+                            <span className="text-xs font-bold px-2 py-1 bg-black/20 rounded-md uppercase">Comida</span>
+                          </div>
+                          
+                          <div className="p-4 flex-1">
+                            <ul className="space-y-3">
+                              {itensCozinha.map((item: any, idx: number) => (
+                                <li key={idx} className="flex justify-between items-start border-b border-gray-50 pb-2">
+                                  <div>
+                                    <span className="font-black text-orange-600 mr-2">{item.quantidade}x</span>
+                                    <span className="font-bold text-gray-800">{item.nome}</span>
+                                    {item.observacao && <p className="text-xs font-bold text-red-500 mt-1 uppercase tracking-wide">Obs: {item.observacao}</p>}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          
+                          <div className="p-3 bg-gray-50 flex gap-2">
+                            <button onClick={() => concluirPedido(pedido.id)} className="flex-1 py-3 bg-green-500 text-white font-black rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                              <CheckCircle2 className="w-5 h-5"/> Feito
+                            </button>
+                            <button onClick={() => forcarExclusaoPedido(pedido.id)} className="px-4 py-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-colors" title="Forçar Exclusão">
+                              <Trash2 className="w-5 h-5"/>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* COLUNA: BAR E BEBIDAS */}
+                <div className="bg-blue-50/50 p-4 rounded-3xl border border-blue-100">
+                  <div className="flex items-center gap-3 mb-6 px-2">
+                    <div className="w-3 h-8 bg-blue-600 rounded-full"></div>
+                    <h3 className="font-black text-2xl text-gray-900">Bar (Bebidas)</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pedidosAtivos.map(pedido => {
+                      // Filtra apenas os itens que SÃO bebidas
+                      const itensBar = pedido.itens?.filter((item: any) => {
+                        const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
+                        return infoProduto?.setor === 'bar';
+                      }) || [];
+
+                      if (itensBar.length === 0) return null;
+
+                      return (
+                        <div key={`bar-${pedido.id}`} className="bg-white border-2 border-blue-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                          <div className="p-3 bg-blue-600 flex justify-between items-center text-white">
+                            <h4 className="font-black text-xl">Mesa {pedido.mesa}</h4>
+                            <span className="text-xs font-bold px-2 py-1 bg-black/20 rounded-md uppercase">Bebida</span>
+                          </div>
+                          
+                          <div className="p-4 flex-1">
+                            <ul className="space-y-3">
+                              {itensBar.map((item: any, idx: number) => (
+                                <li key={idx} className="flex justify-between items-start border-b border-gray-50 pb-2">
+                                  <div>
+                                    <span className="font-black text-blue-600 mr-2">{item.quantidade}x</span>
+                                    <span className="font-bold text-gray-800">{item.nome}</span>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          
+                          <div className="p-3 bg-gray-50 flex gap-2">
+                            <button onClick={() => concluirPedido(pedido.id)} className="flex-1 py-3 bg-blue-500 text-white font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
+                              <CheckCircle2 className="w-5 h-5"/> Feito
+                            </button>
+                            <button onClick={() => forcarExclusaoPedido(pedido.id)} className="px-4 py-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-colors" title="Forçar Exclusão">
+                              <Trash2 className="w-5 h-5"/>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            )}
           </div>
         )}
 
