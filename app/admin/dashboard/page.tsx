@@ -11,6 +11,103 @@ import {
 } from 'lucide-react';
 
 export default function AdminDashboard() {
+  const INSUMOS_RESTAURANTE = [
+  // Carnes
+  { nome: "Carne - Baby Beef", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Bacon", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Beef Chorizo", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Carne seca", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Filé Mignon", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Filé Mignon Suíno", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Frango (Peito)", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Linguiça Cofril", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Linguiça Calabresa", categoria: "Carnes", unidade: "kg" },
+  { nome: "Carne - Picanha", categoria: "Carnes", unidade: "kg" },
+  
+  // Hortifruti
+  { nome: "Alho", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Banana da Terra", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Batata", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Cebola", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Couve", categoria: "Hortifruti", unidade: "Molho" },
+  { nome: "Laranja", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Limão", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Tomate", categoria: "Hortifruti", unidade: "kg" },
+  { nome: "Ovo Branco (Cartela)", categoria: "Hortifruti", unidade: "Unidade" },
+
+  // Mercearia e Secos
+  { nome: "Açúcar Cristal", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Açúcar Refinado", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Arroz - Fighera (5kg)", categoria: "Mercearia", unidade: "Pacote" },
+  { nome: "Azeite - Ama Lusa", categoria: "Mercearia", unidade: "Garrafa" },
+  { nome: "Café - Melita", categoria: "Mercearia", unidade: "Pacote" },
+  { nome: "Creme de Leite", categoria: "Mercearia", unidade: "Caixa" },
+  { nome: "Farinha", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Farinha de Trigo", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Feijão Preto", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Feijão Vermelho", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Leite Condensado", categoria: "Mercearia", unidade: "Caixa" },
+  { nome: "Óleo de Soja", categoria: "Mercearia", unidade: "Garrafa" },
+  { nome: "Pão - Minibaguete", categoria: "Mercearia", unidade: "Pct (10)" },
+  { nome: "Sal Churrasco", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Sal Cozinha", categoria: "Mercearia", unidade: "kg" },
+  { nome: "Sal Grosso", categoria: "Mercearia", unidade: "kg" },
+
+  // Temperos e Condimentos
+  { nome: "Canela", categoria: "Temperos", unidade: "Unidade" },
+  { nome: "Tempero Alecrim", categoria: "Temperos", unidade: "Unidade" },
+  { nome: "Tempero Chimichurri", categoria: "Temperos", unidade: "Unidade" },
+  { nome: "Tempero Ervas", categoria: "Temperos", unidade: "Unidade" },
+
+  // Laticínios e Sorvetes
+  { nome: "Margarina Qualy", categoria: "Laticínios", unidade: "kg" },
+  { nome: "Queijo Provolone", categoria: "Laticínios", unidade: "kg" },
+  { nome: "Sorvete Creme", categoria: "Sobremesas", unidade: "Pote" },
+  { nome: "Gelo", categoria: "Diversos", unidade: "Saco" },
+
+  // Bebidas (Bar)
+  { nome: "Água Mineral c/ Gás", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Água Mineral s/ Gás", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Cachaça Velho Barreiro", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Coca-Cola 600ml", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Coca-Cola KS", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Guaraná Lata", categoria: "Bebidas", unidade: "Lata" },
+  { nome: "Guaravita", categoria: "Bebidas", unidade: "Copo" },
+  { nome: "Mineirinho", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Suco Lata", categoria: "Bebidas", unidade: "Lata" },
+  { nome: "Vinho", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Vodka", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Cerveja Amstel 600ml", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Cerveja Heineken 600ml", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Cerveja Original 600ml", categoria: "Bebidas", unidade: "Garrafa" },
+  { nome: "Cerveja Stella Artois 300ml", categoria: "Bebidas", unidade: "Garrafa" },
+
+  // Bomboniere
+  { nome: "Bala - Halls", categoria: "Bomboniere", unidade: "Unidade" },
+  { nome: "Bala - Mentos", categoria: "Bomboniere", unidade: "Unidade" },
+  { nome: "Bala - Trident", categoria: "Bomboniere", unidade: "Unidade" },
+
+  // Limpeza
+  { nome: "Água Sanitária", categoria: "Limpeza", unidade: "Litro" },
+  { nome: "Álcool 70%", categoria: "Limpeza", unidade: "Frasco" },
+  { nome: "Desinfetante UAU", categoria: "Limpeza", unidade: "Frasco" },
+  { nome: "Detergente", categoria: "Limpeza", unidade: "Frasco" },
+  { nome: "Esponja", categoria: "Limpeza", unidade: "Unidade" },
+  { nome: "Pano Multiuso", categoria: "Limpeza", unidade: "Unidade" },
+  { nome: "Veja", categoria: "Limpeza", unidade: "Frasco" },
+
+  // Descartáveis e Uso Geral
+  { nome: "Botijão de Gás", categoria: "Diversos", unidade: "Unidade" },
+  { nome: "Fósforos", categoria: "Diversos", unidade: "Pacote" },
+  { nome: "Embalagem Viagem", categoria: "Descartáveis", unidade: "Unidade" },
+  { nome: "Guardanapo Cozinha", categoria: "Descartáveis", unidade: "Pacote" },
+  { nome: "Guardanapo Mesa", categoria: "Descartáveis", unidade: "Pacote" },
+  { nome: "Filtro de Café", categoria: "Descartáveis", unidade: "Unidade" },
+  { nome: "Papel Higiênico", categoria: "Descartáveis", unidade: "Pacote" },
+  { nome: "Papel Toalha Lavabo", categoria: "Descartáveis", unidade: "Pacote" },
+  { nome: "Papel Toalha Cozinha", categoria: "Descartáveis", unidade: "Pacote" },
+  { nome: "Sacola Bobina 20x30", categoria: "Descartáveis", unidade: "Rolo" },
+];
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [abaAtiva, setAbaAtiva] = useState('resumo'); 
@@ -293,16 +390,33 @@ export default function AdminDashboard() {
     await supabase.from('estoque').update({ status: novoStatus }).eq('id', id);
   };
   const sincronizarEstoque = async () => {
-    if (!window.confirm("Isso vai procurar produtos novos no cardápio e adicionar ao estoque. Continuar?")) return;
+    if (!window.confirm("Isso vai puxar a sua nova planilha de compras (Insumos) para o estoque. Continuar?")) return;
+    
     const nomesNoBanco = estoque.map(e => e.nome_produto);
-    const produtosFaltantes = PRODUTOS.filter(p => !nomesNoBanco.includes(p.nome));
-    if (produtosFaltantes.length === 0) return alert("O seu estoque já está 100% atualizado com o cardápio!");
+    const produtosFaltantes = INSUMOS_RESTAURANTE.filter(p => !nomesNoBanco.includes(p.nome));
+
+    if (produtosFaltantes.length === 0) {
+      alert("A sua planilha de estoque já está 100% sincronizada com o banco!");
+      return;
+    }
+
     const novosInsumos = produtosFaltantes.map(p => ({
-      nome_produto: p.nome, categoria: p.categoria, unidade_medida: p.setor === 'bar' ? 'Unidade' : 'Porção', quantidade_atual: 0, estoque_minimo: p.setor === 'bar' ? 24 : 10, custo_unitario: 0
+      nome_produto: p.nome,
+      categoria: p.categoria,
+      unidade_medida: p.unidade,
+      quantidade_atual: 0,
+      estoque_minimo: p.categoria === 'Carnes' ? 5 : 10, 
+      custo_unitario: 0,
+      status: 'Adequado'
     }));
+
     const { error } = await supabase.from('estoque').insert(novosInsumos);
-    if (error) alert("Erro ao sincronizar. Verifique sua conexão com o banco.");
-    else { alert(`${produtosFaltantes.length} novos produtos foram adicionados ao estoque!`); buscarEstoque(); }
+    if (error) {
+      alert("Erro ao sincronizar. Verifique sua conexão com o banco.");
+    } else {
+      alert(`${produtosFaltantes.length} novos insumos foram adicionados ao estoque!`);
+      buscarEstoque();
+    }
   };
 
   const handleLogout = async () => {
@@ -629,12 +743,12 @@ export default function AdminDashboard() {
 
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Forma de Pagamento</label>
-                    <select value={formaPagamentoCaixa} onChange={(e) => setFormaPagamentoCaixa(e.target.value)} className="w-full bg-white border border-gray-300 font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
-                      <option value="PIX">PIX</option>
-                      <option value="Cartão de Crédito">Cartão de Crédito</option>
-                      <option value="Cartão de Débito">Cartão de Débito</option>
-                      <option value="Dinheiro">Dinheiro</option>
-                    </select>
+                      <select value={formaPagamentoCaixa} onChange={(e) => setFormaPagamentoCaixa(e.target.value)} className="w-full bg-white text-black border border-gray-300 font-bold p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="PIX" className="text-black">PIX</option>
+                        <option value="Cartão de Crédito" className="text-black">Cartão de Crédito</option>
+                        <option value="Cartão de Débito" className="text-black">Cartão de Débito</option>
+                        <option value="Dinheiro" className="text-black">Dinheiro</option>
+                      </select>
                   </div>
 
                   <div className="flex justify-between items-center pt-4 border-t border-gray-200">
