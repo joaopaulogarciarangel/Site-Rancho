@@ -107,25 +107,18 @@ export default function AdminDashboard() {
   };
 
   const removerParte = async (chave: string, pedidoId: number, temCozinha: boolean, temBar: boolean) => {
-    // 1. Marca visualmente como removido na tela
     setStatusPartes(prev => {
       const newState = { ...prev, [chave]: 'removido' };
-      
-      // 2. Verifica se a mesa inteira já foi entregue
       const chaveCoz = `coz-${pedidoId}`;
       const chaveBar = `bar-${pedidoId}`;
-      
       const cozRemovida = !temCozinha || newState[chaveCoz] === 'removido';
       const barRemovido = !temBar || newState[chaveBar] === 'removido';
       
-      // Se a cozinha e o bar já foram removidos (ou se não existia pedido pra um deles)
       if (cozRemovida && barRemovido) {
-        // Tira o pedido principal da tela
         setPedidosAtivos(lista => lista.filter(p => p.id !== pedidoId));
-        // Finaliza de verdade no banco de dados
-        supabase.from('pedidos').update({ status: 'finalizado' }).eq('id', pedidoId).then();
+        // ALTERAÇÃO: Muda para 'entregue' para o pedido continuar existindo na conta da mesa
+        supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId).then();
       }
-      
       return newState;
     });
   };
@@ -254,6 +247,9 @@ export default function AdminDashboard() {
           <button onClick={() => setAbaAtiva('operacao')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'operacao' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
             <Activity className="w-5 h-5" /> Operação ao Vivo
           </button>
+          <button onClick={() => setAbaAtiva('fechamento')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'fechamento' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
+            <ReceiptText className="w-5 h-5" /> Fechar Conta
+          </button>
           <button onClick={() => setAbaAtiva('historico')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${abaAtiva === 'historico' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:bg-gray-900'}`}>
             <TrendingUp className="w-5 h-5" /> Histórico de Vendas
           </button>
@@ -277,6 +273,10 @@ export default function AdminDashboard() {
         <button onClick={() => setAbaAtiva('operacao')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'operacao' ? 'text-orange-500' : 'text-gray-400'}`}>
           <Activity className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-bold">Salão</span>
+        </button>
+        <button onClick={() => setAbaAtiva('fechamento')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'fechamento' ? 'text-orange-500' : 'text-gray-400'}`}>
+          <ReceiptText className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-bold">Caixa</span>
         </button>
         <button onClick={() => setAbaAtiva('historico')} className={`flex flex-col items-center p-2 flex-1 ${abaAtiva === 'historico' ? 'text-orange-500' : 'text-gray-400'}`}>
           <TrendingUp className="w-6 h-6 mb-1" />
@@ -355,13 +355,17 @@ export default function AdminDashboard() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {pedidosAtivos.map(pedido => {
+                      // Substitua os filtros atuais por estes:
                       const itensCozinha = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        return infoProduto?.setor !== 'bar';
+                        // Cozinha recebe tudo que NÃO é do setor bar, OU que explicitamente seja a categoria de Sobremesas
+                        return infoProduto?.setor !== 'bar' || infoProduto?.categoria?.toLowerCase().includes('sobremesa');
                       }) || [];
+
                       const itensBar = pedido.itens?.filter((item: any) => {
                         const infoProduto = PRODUTOS.find(p => p.nome === item.nome);
-                        return infoProduto?.setor === 'bar';
+                        // Bar recebe APENAS se for setor bar E não for categoria Sobremesa
+                        return infoProduto?.setor === 'bar' && !infoProduto?.categoria?.toLowerCase().includes('sobremesa');
                       }) || [];
 
                       const temCozinha = itensCozinha.length > 0;
@@ -481,6 +485,19 @@ export default function AdminDashboard() {
 
               </div>
             )}
+          </div>
+        )}
+
+                {/* ==========================================
+            ABA: FECHAMENTO DE CONTA
+            ========================================== */}
+        {abaAtiva === 'fechamento' && (
+          <div className="space-y-6">
+            <h3 className="font-black text-2xl text-gray-900">Fechamento e Emissão</h3>
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm min-h-[50vh]">
+              {/* O componente do Garçom será renderizado aqui */}
+              <p className="text-gray-500 text-center mt-10">Carregando interface do caixa...</p>
+            </div>
           </div>
         )}
 
