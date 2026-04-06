@@ -232,28 +232,34 @@ export default function AdminDashboard() {
     if (cupomRef.current) {
       const conteudoCupom = cupomRef.current.innerHTML;
       const janelaImpressao = window.open('', '', 'height=600,width=400');
+      
       if (janelaImpressao) {
         janelaImpressao.document.write(`
           <html>
             <head>
-              <title>Conferência Mesa ${mesaSelecionadaCaixa}</title>
+              <title>Conferencia_Mesa_${mesaSelecionadaCaixa}</title>
               <style>
-                @page { margin: 0; size: 80mm 297mm; } 
+                /* Omitir a altura no 'size' faz a impressora cortar o papel exatamente no fim do texto */
+                @page { 
+                  margin: 0; 
+                } 
                 body { 
-                  font-family: monospace; 
+                  font-family: 'Courier New', Courier, monospace; 
                   width: 76mm; 
-                  margin: 0 auto; 
-                  padding: 5mm 0;
-                  font-size: 12px;
+                  margin: 0; 
+                  padding: 4mm;
+                  font-size: 13px;
                   color: black;
                 }
+                * { box-sizing: border-box; }
                 .text-center { text-align: center; }
                 .text-right { text-align: right; }
                 .font-bold { font-weight: bold; }
                 .text-lg { font-size: 16px; }
                 .text-xl { font-size: 18px; }
-                .border-dashed { border-bottom: 1px dashed black; margin: 10px 0; }
-                .flex-between { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                .mb-1 { margin-bottom: 4px; }
+                .border-dashed { border-bottom: 1px dashed black; margin: 8px 0; }
+                .flex-between { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center; }
               </style>
             </head>
             <body>
@@ -263,7 +269,12 @@ export default function AdminDashboard() {
         `);
         janelaImpressao.document.close();
         janelaImpressao.focus();
-        janelaImpressao.print();
+        
+        // Timeout de 250ms garante que o CSS seja renderizado antes de enviar para a impressora
+        setTimeout(() => {
+          janelaImpressao.print();
+          janelaImpressao.close(); // Fecha a janelinha branca automaticamente
+        }, 250);
       }
     }
   };
