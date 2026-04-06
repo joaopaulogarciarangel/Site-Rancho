@@ -239,27 +239,23 @@ export default function AdminDashboard() {
             <head>
               <title>Conferencia_Mesa_${mesaSelecionadaCaixa}</title>
               <style>
-                /* Omitir a altura no 'size' faz a impressora cortar o papel exatamente no fim do texto */
-                @page { 
-                  margin: 0; 
-                } 
+                @page { margin: 0; } 
                 body { 
                   font-family: 'Courier New', Courier, monospace; 
                   width: 76mm; 
                   margin: 0; 
-                  padding: 4mm;
-                  font-size: 13px;
+                  padding: 4mm 2mm;
+                  font-size: 11px;
                   color: black;
+                  text-transform: uppercase;
                 }
                 * { box-sizing: border-box; }
                 .text-center { text-align: center; }
-                .text-right { text-align: right; }
                 .font-bold { font-weight: bold; }
-                .text-lg { font-size: 16px; }
-                .text-xl { font-size: 18px; }
-                .mb-1 { margin-bottom: 4px; }
-                .border-dashed { border-bottom: 1px dashed black; margin: 8px 0; }
-                .flex-between { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center; }
+                .border-dashed { border-bottom: 1px dashed black; margin: 6px 0; }
+                .flex-between { display: flex; justify-content: space-between; align-items: center; }
+                .item-row { margin-bottom: 4px; }
+                .item-calc { padding-left: 20px; display: flex; justify-content: space-between; }
               </style>
             </head>
             <body>
@@ -270,10 +266,9 @@ export default function AdminDashboard() {
         janelaImpressao.document.close();
         janelaImpressao.focus();
         
-        // Timeout de 250ms garante que o CSS seja renderizado antes de enviar para a impressora
         setTimeout(() => {
           janelaImpressao.print();
-          janelaImpressao.close(); // Fecha a janelinha branca automaticamente
+          janelaImpressao.close();
         }, 250);
       }
     }
@@ -1218,60 +1213,92 @@ export default function AdminDashboard() {
       )}
 
       {/* ==========================================
-          CUPOM INVISÍVEL PARA IMPRESSORA TÉRMICA (80MM)
+          CUPOM INVISÍVEL PARA IMPRESSORA TÉRMICA (PADRÃO NFC-E)
           ========================================== */}
       {mesaSelecionadaCaixa !== null && (
         <div className="hidden">
           <div ref={cupomRef}>
             <div className="text-center">
-              <div className="font-bold text-xl mb-1">CHURRASCARIA RANCHO AROEIRA</div>
-              <div>Rua Fictícia, 123 - Rio de Janeiro</div>
-              <div className="border-dashed"></div>
-              <div className="font-bold text-lg">CONTA - MESA {mesaSelecionadaCaixa}</div>
-              <div>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-              <div className="border-dashed"></div>
+              <div className="font-bold" style={{ fontSize: '14px' }}>RANCHO AROEIRA RESTAURANTE</div>
+              <div>CNPJ: 00.000.000/0001-00</div>
+              <div>RUA FICTICIA, 123 - RIO DE JANEIRO - RJ</div>
+              <div>I.E.: ISENTO</div>
             </div>
             
-            <div style={{ marginBottom: '10px' }}>
-              <div className="flex-between font-bold">
-                <span>Qtd.  Item</span>
-                <span>Valor</span>
-              </div>
-              <div className="border-dashed" style={{ margin: '5px 0' }}></div>
-              
+            <div className="border-dashed"></div>
+            <div className="text-center font-bold" style={{ fontSize: '11px' }}>
+              Documento Auxiliar de Conferência
+              <br/>Mesa {mesaSelecionadaCaixa}
+            </div>
+            <div className="border-dashed"></div>
+            
+            <div className="font-bold" style={{ fontSize: '11px', marginBottom: '4px' }}>
+              # COD DESCRICAO<br/>
+              <span style={{ paddingLeft: '20px' }}>QTD UN X VL UN (R$)</span>
+              <span style={{ float: 'right' }}>VL TOT (R$)</span>
+            </div>
+            
+            <div className="border-dashed" style={{ marginTop: '0' }}></div>
+            
+            <div style={{ fontSize: '11px' }}>
               {(comandasCaixa[mesaSelecionadaCaixa] || []).map((item, idx) => (
-                <div key={idx} className="flex-between">
-                  <span>{item.quantidade}x {item.nome.substring(0, 20)}</span>
-                  <span>R$ {(item.preco * item.quantidade).toFixed(2)}</span>
+                <div key={idx} className="item-row">
+                  <div>{String(idx + 1).padStart(3, '0')} {String(idx + 101).padStart(4, '0')} {item.nome}</div>
+                  <div className="item-calc">
+                    <span>{item.quantidade} UN X {item.preco.toFixed(2).replace('.', ',')}</span>
+                    <span>{(item.preco * item.quantidade).toFixed(2).replace('.', ',')}</span>
+                  </div>
                 </div>
               ))}
+              
+              {incluirTaxa && (
+                <div className="item-row">
+                  <div>999 9999 TAXA DE SERVICO</div>
+                  <div className="item-calc">
+                    <span>1 UN X {((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2).replace('.', ',')}</span>
+                    <span>{((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2).replace('.', ',')}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-dashed"></div>
             
-            <div className="flex-between">
-              <span>Subtotal:</span>
-              <span>R$ {(comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0).toFixed(2)}</span>
+            <div style={{ fontSize: '11px' }}>
+              <div className="flex-between">
+                <span>Qtde. total de itens</span>
+                <span>
+                  {(comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.quantidade, 0) + (incluirTaxa ? 1 : 0)}
+                </span>
+              </div>
+              <div className="flex-between font-bold" style={{ fontSize: '13px', marginTop: '4px' }}>
+                <span>Valor total R$</span>
+                <span>{((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * (incluirTaxa ? 1.1 : 1)).toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
-            <div className="flex-between">
-              <span>Taxa (10%):</span>
-              <span>R$ {incluirTaxa ? ((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2) : '0.00'}</span>
+
+            <div className="border-dashed"></div>
+            
+            <div style={{ fontSize: '11px' }}>
+              <div className="flex-between font-bold">
+                <span>FORMA DE PAGAMENTO</span>
+                <span>VALOR PAGO R$</span>
+              </div>
+              <div className="flex-between">
+                <span>{formaPagamentoCaixa.toUpperCase()}</span>
+                <span>{((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * (incluirTaxa ? 1.1 : 1)).toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
             
             <div className="border-dashed"></div>
-            
-            <div className="flex-between font-bold text-lg">
-              <span>TOTAL:</span>
-              <span>R$ {((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * (incluirTaxa ? 1.1 : 1)).toFixed(2)}</span>
+
+            <div className="text-center" style={{ fontSize: '11px', marginTop: '10px' }}>
+              <div>DATA: {new Date().toLocaleDateString('pt-BR')} HORA: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+              <br/>
+              <div className="font-bold">OBRIGADO PELA PREFERENCIA!</div>
+              <div>VOLTE SEMPRE!</div>
             </div>
             
-            <div className="text-center" style={{ marginTop: '15px' }}>
-              <div>Pagamento via: {formaPagamentoCaixa}</div>
-              <div className="border-dashed"></div>
-              <div className="font-bold">OBRIGADO PELA PREFERÊNCIA!</div>
-              <div>Volte Sempre!</div>
-            </div>
-            {/* Espaço extra para a guilhotina cortar certo */}
             <div style={{ height: '30px' }}></div> 
           </div>
         </div>
