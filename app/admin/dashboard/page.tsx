@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { PRODUTOS } from '@/data/cardapio'; 
 import { 
@@ -8,10 +8,12 @@ import {
   CalendarClock, Download, Trash2, Plus, Minus, 
   RefreshCw, ReceiptText, XCircle, Target, 
   PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2, Check,
-  Search, TrendingDown // <-- Adicione estes dois aqui no final
+  Search, TrendingDown
 } from 'lucide-react';
 
 export default function AdminDashboard() {
+  const cupomRef = useRef<HTMLDivElement>(null); 
+
   const INSUMOS_RESTAURANTE = [
   // Carnes
   { nome: "Carne - Baby Beef", categoria: "Carnes", unidade: "kg" },
@@ -223,6 +225,48 @@ export default function AdminDashboard() {
       carregarMesasCaixa();
     }
   }, [abaAtiva, pedidosAtivos]);
+
+  const imprimirPreConta = () => {
+    if (!mesaSelecionadaCaixa) return;
+
+    if (cupomRef.current) {
+      const conteudoCupom = cupomRef.current.innerHTML;
+      const janelaImpressao = window.open('', '', 'height=600,width=400');
+      if (janelaImpressao) {
+        janelaImpressao.document.write(`
+          <html>
+            <head>
+              <title>Conferência Mesa ${mesaSelecionadaCaixa}</title>
+              <style>
+                @page { margin: 0; size: 80mm 297mm; } 
+                body { 
+                  font-family: monospace; 
+                  width: 76mm; 
+                  margin: 0 auto; 
+                  padding: 5mm 0;
+                  font-size: 12px;
+                  color: black;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: bold; }
+                .text-lg { font-size: 16px; }
+                .text-xl { font-size: 18px; }
+                .border-dashed { border-bottom: 1px dashed black; margin: 10px 0; }
+                .flex-between { display: flex; justify-content: space-between; margin-bottom: 5px; }
+              </style>
+            </head>
+            <body>
+              ${conteudoCupom}
+            </body>
+          </html>
+        `);
+        janelaImpressao.document.close();
+        janelaImpressao.focus();
+        janelaImpressao.print();
+      }
+    }
+  };
 
   const encerrarMesaCaixa = async () => {
     if (!mesaSelecionadaCaixa) return;
@@ -774,9 +818,15 @@ export default function AdminDashboard() {
                     </span>
                   </div>
 
-                  <button onClick={encerrarMesaCaixa} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black text-xl py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
-                    <ReceiptText className="w-6 h-6" /> Encerrar e Liberar Mesa
-                  </button>
+                  <div className="flex flex-col gap-3 mt-4">
+                    <button onClick={imprimirPreConta} className="w-full bg-gray-900 hover:bg-gray-800 text-white font-black text-lg py-4 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                      <ReceiptText className="w-5 h-5" /> 1. Imprimir Conferência
+                    </button>
+                    
+                    <button onClick={encerrarMesaCaixa} className="w-full bg-green-600 hover:bg-green-500 text-white font-black text-lg py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5" /> 2. Confirmar Pagamento e Liberar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1035,6 +1085,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ==========================================
+            ABA: HISTÓRICO DE VENDAS
+            ========================================== */}
         {abaAtiva === 'historico' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-4 md:p-6 shadow-sm">
             <div className="overflow-x-auto">
@@ -1149,6 +1202,66 @@ export default function AdminDashboard() {
               <span className="font-bold text-gray-500 uppercase text-sm">Valor Final</span>
               <span className="font-black text-3xl text-green-700">R$ {Number(vendaExpandida.valor_total).toFixed(2)}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          CUPOM INVISÍVEL PARA IMPRESSORA TÉRMICA (80MM)
+          ========================================== */}
+      {mesaSelecionadaCaixa !== null && (
+        <div className="hidden">
+          <div ref={cupomRef}>
+            <div className="text-center">
+              <div className="font-bold text-xl mb-1">CHURRASCARIA RANCHO AROEIRA</div>
+              <div>Rua Fictícia, 123 - Rio de Janeiro</div>
+              <div className="border-dashed"></div>
+              <div className="font-bold text-lg">CONTA - MESA {mesaSelecionadaCaixa}</div>
+              <div>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className="border-dashed"></div>
+            </div>
+            
+            <div style={{ marginBottom: '10px' }}>
+              <div className="flex-between font-bold">
+                <span>Qtd.  Item</span>
+                <span>Valor</span>
+              </div>
+              <div className="border-dashed" style={{ margin: '5px 0' }}></div>
+              
+              {(comandasCaixa[mesaSelecionadaCaixa] || []).map((item, idx) => (
+                <div key={idx} className="flex-between">
+                  <span>{item.quantidade}x {item.nome.substring(0, 20)}</span>
+                  <span>R$ {(item.preco * item.quantidade).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-dashed"></div>
+            
+            <div className="flex-between">
+              <span>Subtotal:</span>
+              <span>R$ {(comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0).toFixed(2)}</span>
+            </div>
+            <div className="flex-between">
+              <span>Taxa (10%):</span>
+              <span>R$ {incluirTaxa ? ((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2) : '0.00'}</span>
+            </div>
+            
+            <div className="border-dashed"></div>
+            
+            <div className="flex-between font-bold text-lg">
+              <span>TOTAL:</span>
+              <span>R$ {((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * (incluirTaxa ? 1.1 : 1)).toFixed(2)}</span>
+            </div>
+            
+            <div className="text-center" style={{ marginTop: '15px' }}>
+              <div>Pagamento via: {formaPagamentoCaixa}</div>
+              <div className="border-dashed"></div>
+              <div className="font-bold">OBRIGADO PELA PREFERÊNCIA!</div>
+              <div>Volte Sempre!</div>
+            </div>
+            {/* Espaço extra para a guilhotina cortar certo */}
+            <div style={{ height: '30px' }}></div> 
           </div>
         </div>
       )}
