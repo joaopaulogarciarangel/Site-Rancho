@@ -1221,7 +1221,7 @@ export default function AdminDashboard() {
             <div className="text-center">
               <div className="font-bold" style={{ fontSize: '14px' }}>RANCHO AROEIRA RESTAURANTE</div>
               <div>CNPJ: 00.000.000/0001-00</div>
-              <div>RUA FICTICIA, 123 - RIO DE JANEIRO - RJ</div>
+              <div>BR 356 KM 174 - Curva de Grussaí - RJ</div>
               <div>I.E.: ISENTO</div>
             </div>
             
@@ -1295,8 +1295,8 @@ export default function AdminDashboard() {
             <div className="text-center" style={{ fontSize: '11px', marginTop: '10px' }}>
               <div>DATA: {new Date().toLocaleDateString('pt-BR')} HORA: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
               <br/>
-              <div className="font-bold">OBRIGADO PELA PREFERENCIA!</div>
-              <div>VOLTE SEMPRE!</div>
+              <div className="font-bold"></div>
+              <div></div>
             </div>
             
             <div style={{ height: '30px' }}></div> 
