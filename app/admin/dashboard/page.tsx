@@ -1220,7 +1220,7 @@ export default function AdminDashboard() {
           <div ref={cupomRef}>
             <div className="text-center">
               <div className="font-bold" style={{ fontSize: '14px' }}>RANCHO AROEIRA RESTAURANTE</div>
-              <div>CNPJ: 00.000.000/0001-00</div>
+              <div>CNPJ: 58.510.855/0001-42</div>
               <div>BR 356 KM 174 - Curva de Grussaí - RJ</div>
               <div>I.E.: ISENTO</div>
             </div>
