@@ -1,7 +1,5 @@
-export const dynamic = 'force-dynamic';
-
 'use client';
-
+export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Plus, Minus, ShoppingCart, Send, MessageSquare, UtensilsCrossed, CheckCircle2, XCircle, ListPlus, Trash2, Search, Flame, Lock } from 'lucide-react';
 import { CATEGORIAS, PRODUTOS, Produto } from '../data/cardapio';
