@@ -9,4 +9,10 @@ if (!supabaseUrl.startsWith('http')) {
   supabaseUrl = 'https://link-falso.supabase.co';
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    }
+  }
+});
