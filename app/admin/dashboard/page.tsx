@@ -1,6 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { PRODUTOS } from '@/data/cardapio'; 
 import { 
@@ -8,8 +8,58 @@ import {
   CalendarClock, Download, Trash2, Plus, Minus, 
   RefreshCw, ReceiptText, XCircle, Target, 
   PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2, Check,
-  Search, TrendingDown, LayoutGrid
+  Search, TrendingDown, LayoutGrid, Calendar
 } from 'lucide-react';
+
+// Input de data no formato DD/MM/AAAA com picker nativo ao clicar no ícone
+function BRDateInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const toDisplay = (v: string) => v ? `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}` : '';
+  const [text, setText] = useState(toDisplay(value));
+  const pickerRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setText(toDisplay(value)); }, [value]);
+
+  const handleText = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    let fmt = digits;
+    if (digits.length > 2) fmt = digits.slice(0, 2) + '/' + digits.slice(2);
+    if (digits.length > 4) fmt = digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
+    setText(fmt);
+    if (digits.length === 8) {
+      const iso = `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+      if (!isNaN(new Date(iso).getTime())) onChange(iso);
+    }
+  };
+
+  const handlePicker = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.value);
+    setText(toDisplay(e.target.value));
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <input
+        type="text"
+        value={text}
+        onChange={handleText}
+        placeholder="DD/MM/AAAA"
+        maxLength={10}
+        className={className}
+      />
+      <button type="button" onClick={() => pickerRef.current?.showPicker()} className="absolute right-3 text-gray-400 hover:text-orange-500">
+        <Calendar className="w-4 h-4" />
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        value={value}
+        onChange={handlePicker}
+        className="absolute inset-0 opacity-0 pointer-events-none w-0"
+        tabIndex={-1}
+      />
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const cupomRef = useRef<HTMLDivElement>(null); 
@@ -132,7 +182,8 @@ export default function AdminDashboard() {
   // Estado para controlar os botões de duas etapas (Feito -> Remover) na Operação ao Vivo
   const [statusPartes, setStatusPartes] = useState<Record<string, string>>({});
 
-  const [filtroTempo, setFiltroTempo] = useState('hoje'); 
+  const [dataInicio, setDataInicio] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
   const [metaDiaria, setMetaDiaria] = useState(3000);
 
   useEffect(() => {
@@ -280,8 +331,9 @@ export default function AdminDashboard() {
     if (!window.confirm(`Confirmar o encerramento e pagamento da Mesa ${mesaSelecionadaCaixa}?`)) return;
 
     const itensConsumidos = comandasCaixa[mesaSelecionadaCaixa] || [];
-    const subtotal = itensConsumidos.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
-    const totalFinal = incluirTaxa ? subtotal * 1.1 : subtotal;
+    const subtotal = Number(itensConsumidos.reduce((acc, item) => acc + item.preco * item.quantidade, 0).toFixed(2));
+    const valorTaxa = incluirTaxa ? Number((subtotal * 0.1).toFixed(2)) : 0;
+    const totalFinal = Number((subtotal + valorTaxa).toFixed(2));
 
     // Calcular tempo médio de preparo apenas para pedidos com itens de cozinha relevantes
     const ehItemCozinha = (id: string) => {
@@ -311,7 +363,8 @@ export default function AdminDashboard() {
         itens: itensConsumidos,
         valor_total: totalFinal,
         forma_pagamento: formaPagamentoCaixa,
-        tempo_preparo_min: tempoPreparo
+        tempo_preparo_min: tempoPreparo,
+        taxa_servico_paga: incluirTaxa
       }]);
 
       await supabase.from('pedidos').update({ status: 'finalizado' }).eq('mesa', mesaSelecionadaCaixa);
@@ -380,17 +433,9 @@ export default function AdminDashboard() {
   // FILTRAGEM E BI
   // ==========================================
   const vendasFiltradas = vendas.filter(v => {
-    if (filtroTempo === 'tudo') return true;
-    const dataVenda = new Date(v.criado_em);
-    const hoje = new Date();
-    if (filtroTempo === 'hoje') return dataVenda.toDateString() === hoje.toDateString();
-    if (filtroTempo === 'semana') {
-      const seteDiasAtras = new Date();
-      seteDiasAtras.setDate(hoje.getDate() - 7);
-      return dataVenda >= seteDiasAtras;
-    }
-    if (filtroTempo === 'mes') return dataVenda.getMonth() === hoje.getMonth() && dataVenda.getFullYear() === hoje.getFullYear();
-    return true;
+    const d = new Date(v.criado_em);
+    const dataLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return dataLocal >= dataInicio && dataLocal <= dataFim;
   });
 
   const faturamentoTotal = vendasFiltradas.reduce((acc, v) => acc + Number(v.valor_total), 0);
@@ -448,6 +493,11 @@ export default function AdminDashboard() {
     setVendas(prev => prev.map(v => v.id === id ? { ...v, forma_pagamento: pag } : v));
     await supabase.from('vendas_historico').update({ forma_pagamento: pag }).eq('id', id);
   };
+  const atualizarTaxaServico = async (id: string | number, paga: boolean) => {
+    setVendas(prev => prev.map(v => v.id === id ? { ...v, taxa_servico_paga: paga } : v));
+    await supabase.from('vendas_historico').update({ taxa_servico_paga: paga }).eq('id', id);
+  };
+
   const atualizarValorVenda = async (id: string | number, val: number) => {
     if (isNaN(val)) return;
     setVendas(prev => prev.map(v => v.id === id ? { ...v, valor_total: val } : v));
@@ -544,7 +594,7 @@ export default function AdminDashboard() {
     const blob = new Blob(["﻿" + [cabecalho.join(';'), ...linhas].join(String.fromCharCode(10))], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `vendas_${filtroTempo}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
+    link.setAttribute('download', `vendas_${dataInicio}_${dataFim}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
@@ -680,16 +730,19 @@ export default function AdminDashboard() {
           
           <div className="flex flex-wrap items-center gap-3">
             {(abaAtiva === 'historico' || abaAtiva === 'resumo') && (
-               <select 
-                 value={filtroTempo} 
-                 onChange={(e) => setFiltroTempo(e.target.value)}
-                 className="bg-white border border-gray-300 text-gray-900 px-4 py-3 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none shadow-sm"
-               >
-                 <option value="hoje">Hoje</option>
-                 <option value="semana">Esta Semana</option>
-                 <option value="mes">Este Mês</option>
-                 <option value="tudo">Todo o Período</option>
-               </select>
+              <div className="flex items-center gap-2">
+                <BRDateInput
+                  value={dataInicio}
+                  onChange={setDataInicio}
+                  className="bg-white border border-gray-300 text-gray-900 px-3 pr-9 py-3 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none shadow-sm w-36"
+                />
+                <span className="text-gray-500 font-bold text-sm">até</span>
+                <BRDateInput
+                  value={dataFim}
+                  onChange={setDataFim}
+                  className="bg-white border border-gray-300 text-gray-900 px-3 pr-9 py-3 rounded-xl font-bold focus:ring-2 focus:ring-orange-500 outline-none shadow-sm w-36"
+                />
+              </div>
             )}
 
             {abaAtiva === 'historico' && (
@@ -872,7 +925,7 @@ export default function AdminDashboard() {
                     <button
                       key={numero}
                       disabled={!mesaOcupada}
-                      onClick={() => setMesaSelecionadaCaixa(numero)}
+                      onClick={() => { setMesaSelecionadaCaixa(numero); setIncluirTaxa(true); setFormaPagamentoCaixa('PIX'); }}
                       className={`relative border-2 rounded-2xl flex flex-col items-center justify-center p-8 transition-transform
                         ${!mesaOcupada ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed' 
                           : aguardandoPagamento ? 'bg-orange-50 border-orange-400 active:scale-95 shadow-md' 
@@ -998,7 +1051,7 @@ export default function AdminDashboard() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
                 <div className="flex items-center gap-3 text-orange-600 mb-2">
                   <TrendingUp className="w-6 h-6" />
-                  <h3 className="font-bold">Faturamento ({filtroTempo})</h3>
+                  <h3 className="font-bold">Faturamento ({dataInicio === dataFim ? new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR') : `${new Date(dataInicio + 'T12:00:00').toLocaleDateString('pt-BR')} – ${new Date(dataFim + 'T12:00:00').toLocaleDateString('pt-BR')}`})</h3>
                 </div>
                 <p className="text-3xl font-black text-gray-900">R$ {faturamentoTotal.toFixed(2)}</p>
               </div>
@@ -1255,12 +1308,13 @@ export default function AdminDashboard() {
                     <th className="p-4 font-black">Pagamento</th>
                     <th className="p-4 font-black">Clima do Dia</th>
                     <th className="p-4 font-black text-right">Total</th>
+                    <th className="p-4 font-black text-center">Taxa 10%</th>
                     <th className="p-4 font-black text-center">Del</th>
                   </tr>
                 </thead>
                 <tbody>
                   {vendasFiltradas.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-gray-500 font-bold">Nenhuma venda neste período.</td></tr>
+                    <tr><td colSpan={7} className="p-8 text-center text-gray-500 font-bold">Nenhuma venda neste período.</td></tr>
                   ) : (
                     vendasFiltradas.map((venda) => (
                       <tr key={venda.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
@@ -1308,6 +1362,15 @@ export default function AdminDashboard() {
                               className="w-24 font-black text-green-700 text-lg text-right bg-green-50 border border-green-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm"
                             />
                           </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => atualizarTaxaServico(venda.id, !venda.taxa_servico_paga)}
+                            title={venda.taxa_servico_paga !== false ? 'Taxa paga — clique para marcar como não paga' : 'Taxa não paga — clique para marcar como paga'}
+                            className={`px-3 py-1.5 rounded-lg font-black text-xs transition-colors border-2 ${venda.taxa_servico_paga !== false ? 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100' : 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100'}`}
+                          >
+                            {venda.taxa_servico_paga !== false ? 'Paga' : 'Não paga'}
+                          </button>
                         </td>
                         <td className="p-4 text-center">
                           <div className="flex items-center justify-center gap-2">
