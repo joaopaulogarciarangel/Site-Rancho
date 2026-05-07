@@ -8,7 +8,7 @@ import {
   CalendarClock, Download, Trash2, Plus, Minus, 
   RefreshCw, ReceiptText, XCircle, Target, 
   PieChart, BarChart3, Sun, Umbrella, Activity, CheckCircle2, Check,
-  Search, TrendingDown
+  Search, TrendingDown, LayoutGrid
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -127,6 +127,7 @@ export default function AdminDashboard() {
   const [mesaSelecionadaCaixa, setMesaSelecionadaCaixa] = useState<number | null>(null);
   const [incluirTaxa, setIncluirTaxa] = useState(true);
   const [formaPagamentoCaixa, setFormaPagamentoCaixa] = useState('PIX');
+  const [modalTrocarMesaAberto, setModalTrocarMesaAberto] = useState(false);
 
   // Estado para controlar os botões de duas etapas (Feito -> Remover) na Operação ao Vivo
   const [statusPartes, setStatusPartes] = useState<Record<string, string>>({});
@@ -325,6 +326,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const trocarMesa = async (novaMesa: number) => {
+    if (!mesaSelecionadaCaixa || novaMesa === mesaSelecionadaCaixa) return;
+    if (!window.confirm(`Mover comanda da Mesa ${mesaSelecionadaCaixa} para a Mesa ${novaMesa}?`)) return;
+
+    await supabase.from('pedidos')
+      .update({ mesa: novaMesa })
+      .eq('mesa', mesaSelecionadaCaixa)
+      .neq('status', 'finalizado');
+
+    setComandasCaixa(prev => {
+      const novo = { ...prev };
+      novo[novaMesa] = [...(novo[mesaSelecionadaCaixa!] || [])];
+      delete novo[mesaSelecionadaCaixa!];
+      return novo;
+    });
+
+    setMesaSelecionadaCaixa(novaMesa);
+    setModalTrocarMesaAberto(false);
+    buscarPedidosAtivos();
+  };
+
   const forcarExclusaoPedido = async (id: number) => {
     if (!window.confirm("Atenção Gestor: Tem certeza que deseja apagar este pedido à força?")) return;
     setPedidosAtivos(prev => prev.filter(p => p.id !== id));
@@ -437,14 +459,87 @@ export default function AdminDashboard() {
     await supabase.from('vendas_historico').delete().eq('id', id);
   };
   
+  const identificarDataEspecial = (dataISO: string): string => {
+    const d = new Date(dataISO);
+    const ano = d.getFullYear();
+    const mes = d.getMonth() + 1;
+    const dia = d.getDate();
+    const diaSemana = d.getDay(); // 0 = domingo
+
+    // Cálculo da Páscoa (algoritmo de Meeus/Jones/Butcher)
+    const a = ano % 19;
+    const b = Math.floor(ano / 100);
+    const c = ano % 100;
+    const dd = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - dd - g + 15) % 30;
+    const ii = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * ii - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mesPascoa = Math.floor((h + l - 7 * m + 114) / 31);
+    const diaPascoa = ((h + l - 7 * m + 114) % 31) + 1;
+    const pascoa = new Date(ano, mesPascoa - 1, diaPascoa);
+
+    const addDias = (base: Date, n: number) => new Date(base.getTime() + n * 86400000);
+    const igual = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+    if (igual(d, addDias(pascoa, -51))) return 'Pré-Carnaval (Sexta)';
+    if (igual(d, addDias(pascoa, -50))) return 'Pré-Carnaval (Sábado)';
+    if (igual(d, addDias(pascoa, -49))) return 'Carnaval (Domingo)';
+    if (igual(d, addDias(pascoa, -48))) return 'Carnaval (Segunda)';
+    if (igual(d, addDias(pascoa, -47))) return 'Carnaval (Terça)';
+    if (igual(d, addDias(pascoa, -2)))  return 'Sexta-feira Santa';
+    if (igual(d, pascoa))               return 'Páscoa';
+    if (igual(d, addDias(pascoa, 60)))  return 'Corpus Christi';
+
+    // Dia das Mães (2º domingo de maio)
+    if (mes === 5 && diaSemana === 0) {
+      const domingosMaio: number[] = [];
+      for (let x = 1; x <= 31; x++) { const t = new Date(ano, 4, x); if (t.getDay() === 0) domingosMaio.push(t.getDate()); }
+      if (dia === domingosMaio[1]) return 'Dia das Mães';
+    }
+    // Dia dos Pais (2º domingo de agosto)
+    if (mes === 8 && diaSemana === 0) {
+      const domingoAgosto: number[] = [];
+      for (let x = 1; x <= 31; x++) { const t = new Date(ano, 7, x); if (t.getDay() === 0) domingoAgosto.push(t.getDate()); }
+      if (dia === domingoAgosto[1]) return 'Dia dos Pais';
+    }
+
+    // Feriados e datas fixas
+    const fixos: Record<string, string> = {
+      '01/01': 'Ano Novo',
+      '20/01': 'São Sebastião (Feriado RJ)',
+      '23/04': 'São Jorge (Feriado RJ)',
+      '21/04': 'Tiradentes',
+      '01/05': 'Dia do Trabalho',
+      '12/06': 'Dia dos Namorados',
+      '24/06': 'São João (São João da Barra)',
+      '07/09': 'Independência do Brasil',
+      '12/10': 'Nossa Senhora Aparecida',
+      '02/11': 'Finados',
+      '15/11': 'Proclamação da República',
+      '20/11': 'Consciência Negra',
+      '24/12': 'Véspera de Natal',
+      '25/12': 'Natal',
+      '31/12': 'Réveillon',
+    };
+
+    const chave = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}`;
+    return fixos[chave] ?? '';
+  };
+
   const exportarCSV = () => {
     if (vendasFiltradas.length === 0) return alert("Nenhum dado para exportar neste período.");
-    const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Valor Total", "Tempo de Preparo (min)", "Itens Consumidos"];
+    const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Data Especial", "Valor Total", "Tempo de Preparo (min)", "Itens Consumidos"];
     const linhas = vendasFiltradas.map(v => {
       const data = new Date(v.criado_em).toLocaleDateString('pt-BR');
       const hora = new Date(v.criado_em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
       const itensFormatados = v.itens && Array.isArray(v.itens) ? v.itens.map((i: any) => `${i.quantidade}x ${i.nome}`).join(' - ') : 'Sem registro';
-      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', Number(v.valor_total).toFixed(2).replace('.', ','), v.tempo_preparo_min ?? 'N/D', `"${itensFormatados}"`].join(';');
+      const dataEspecial = identificarDataEspecial(v.criado_em);
+      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', dataEspecial || '—', Number(v.valor_total).toFixed(2).replace('.', ','), v.tempo_preparo_min ?? 'N/D', `"${itensFormatados}"`].join(';');
     });
     const blob = new Blob(["﻿" + [cabecalho.join(';'), ...linhas].join(String.fromCharCode(10))], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -847,11 +942,47 @@ export default function AdminDashboard() {
                     <button onClick={imprimirPreConta} className="w-full bg-gray-900 hover:bg-gray-800 text-white font-black text-lg py-4 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
                       <ReceiptText className="w-5 h-5" /> 1. Imprimir Conferência
                     </button>
-                    
+
+                    <button onClick={() => setModalTrocarMesaAberto(true)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-lg py-4 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                      <LayoutGrid className="w-5 h-5" /> 2. Trocar de Mesa
+                    </button>
+
                     <button onClick={encerrarMesaCaixa} className="w-full bg-green-600 hover:bg-green-500 text-white font-black text-lg py-4 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-5 h-5" /> 2. Confirmar Pagamento e Liberar
+                      <CheckCircle2 className="w-5 h-5" /> 3. Confirmar Pagamento e Liberar
                     </button>
                   </div>
+
+                  {/* MODAL TROCAR DE MESA */}
+                  {modalTrocarMesaAberto && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModalTrocarMesaAberto(false)}>
+                      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-black text-gray-900 mb-1">Trocar de Mesa</h3>
+                        <p className="text-sm text-gray-500 mb-4">Selecione a mesa de destino para a comanda da Mesa {mesaSelecionadaCaixa}.</p>
+                        <div className="grid grid-cols-5 gap-2">
+                          {Array.from({ length: 10 }, (_, i) => i + 1).map(num => {
+                            const ocupada = num in comandasCaixa && num !== mesaSelecionadaCaixa;
+                            const atual = num === mesaSelecionadaCaixa;
+                            return (
+                              <button
+                                key={num}
+                                disabled={ocupada || atual}
+                                onClick={() => trocarMesa(num)}
+                                className={`h-14 rounded-xl font-black text-lg transition-all
+                                  ${atual ? 'bg-orange-100 text-orange-400 border-2 border-orange-300 cursor-not-allowed' :
+                                    ocupada ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
+                                    'bg-blue-600 hover:bg-blue-500 text-white active:scale-95 shadow'}`}
+                              >
+                                {num}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button onClick={() => setModalTrocarMesaAberto(false)} className="mt-4 w-full py-2 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
