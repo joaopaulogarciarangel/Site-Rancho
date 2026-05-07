@@ -282,23 +282,43 @@ export default function AdminDashboard() {
     const subtotal = itensConsumidos.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
     const totalFinal = incluirTaxa ? subtotal * 1.1 : subtotal;
 
+    // Calcular tempo médio de preparo apenas para pedidos com itens de cozinha relevantes
+    const ehItemCozinha = (id: string) => {
+      const base = (id || '').split('-')[0];
+      if (base.startsWith('cf')) return false;
+      return base.startsWith('c') || base.startsWith('e') || base.startsWith('pe');
+    };
+
+    const { data: pedidosMesa } = await supabase
+      .from('pedidos')
+      .select('created_at, entregue_em, itens')
+      .eq('mesa', mesaSelecionadaCaixa)
+      .not('entregue_em', 'is', null);
+
+    let tempoPreparo: number | null = null;
+    if (pedidosMesa && pedidosMesa.length > 0) {
+      const tempos = pedidosMesa
+        .filter(p => p.itens?.some((i: any) => ehItemCozinha(i.idProduto)))
+        .map(p => Math.floor((new Date(p.entregue_em).getTime() - new Date(p.created_at).getTime()) / 60000))
+        .filter(t => t > 0);
+      if (tempos.length > 0) tempoPreparo = Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length);
+    }
+
     try {
-      // 1. Salvar no Histórico
       await supabase.from('vendas_historico').insert([{
-        mesa: mesaSelecionadaCaixa, 
-        itens: itensConsumidos, 
-        valor_total: totalFinal, 
-        forma_pagamento: formaPagamentoCaixa
+        mesa: mesaSelecionadaCaixa,
+        itens: itensConsumidos,
+        valor_total: totalFinal,
+        forma_pagamento: formaPagamentoCaixa,
+        tempo_preparo_min: tempoPreparo
       }]);
 
-      // 2. Finalizar no banco de dados para limpar a mesa
       await supabase.from('pedidos').update({ status: 'finalizado' }).eq('mesa', mesaSelecionadaCaixa);
-      
-      // Limpar a tela
+
       setMesaSelecionadaCaixa(null);
-      buscarPedidosAtivos(); 
+      buscarPedidosAtivos();
       alert(`Mesa ${mesaSelecionadaCaixa} encerrada com sucesso!`);
-      
+
     } catch (error) {
       console.error(error);
       alert("Erro ao encerrar a mesa.");
@@ -328,8 +348,7 @@ export default function AdminDashboard() {
       
       if (cozRemovida && barRemovido) {
         setPedidosAtivos(lista => lista.filter(p => p.id !== pedidoId));
-        // Status muda para 'entregue' para manter na comanda, mas sumir da cozinha
-        supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId).then();
+        supabase.from('pedidos').update({ status: 'entregue', entregue_em: new Date().toISOString() }).eq('id', pedidoId).then();
       }
       return newState;
     });
@@ -420,14 +439,14 @@ export default function AdminDashboard() {
   
   const exportarCSV = () => {
     if (vendasFiltradas.length === 0) return alert("Nenhum dado para exportar neste período.");
-    const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Valor Total", "Itens Consumidos"];
+    const cabecalho = ["Data", "Hora", "Mesa", "Forma de Pagamento", "Temperatura", "Clima", "Valor Total", "Tempo de Preparo (min)", "Itens Consumidos"];
     const linhas = vendasFiltradas.map(v => {
       const data = new Date(v.criado_em).toLocaleDateString('pt-BR');
       const hora = new Date(v.criado_em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
       const itensFormatados = v.itens && Array.isArray(v.itens) ? v.itens.map((i: any) => `${i.quantidade}x ${i.nome}`).join(' - ') : 'Sem registro';
-      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', Number(v.valor_total).toFixed(2).replace('.', ','), `"${itensFormatados}"`].join(';');
+      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', Number(v.valor_total).toFixed(2).replace('.', ','), v.tempo_preparo_min ?? 'N/D', `"${itensFormatados}"`].join(';');
     });
-    const blob = new Blob(["\uFEFF" + [cabecalho.join(';'), ...linhas].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(["﻿" + [cabecalho.join(';'), ...linhas].join(String.fromCharCode(10))], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.setAttribute('download', `vendas_${filtroTempo}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
