@@ -1403,7 +1403,7 @@ export default function AdminDashboard() {
               
               {incluirTaxa && (
                 <div className="item-row">
-                  <div>999 9999 TAXA DE SERVICO</div>
+                  <div>999 9999 TAXA DE SERVICO (10%)</div>
                   <div className="item-calc">
                     <span>1 UN X {((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2).replace('.', ',')}</span>
                     <span>{((comandasCaixa[mesaSelecionadaCaixa] || []).reduce((a, b) => a + b.preco * b.quantidade, 0) * 0.1).toFixed(2).replace('.', ',')}</span>
