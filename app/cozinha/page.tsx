@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Clock, CheckCircle2, Flame, LayoutGrid, Volume2, VolumeX } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle2, LayoutGrid, Volume2, VolumeX } from 'lucide-react';
 import { supabase } from '@/lib/supabase'; 
 
 export default function MonitorCozinha() {
@@ -140,43 +140,46 @@ export default function MonitorCozinha() {
 
                 {/* LISTA DE ITENS */}
                 <div className="p-4 flex-1 space-y-3">
-                  {itensApenasCozinha.map((item: any, idx: number) => (
-                    <div key={idx} className="border-b border-gray-700/50 pb-3 last:border-0 last:pb-0">
-                      <div className="flex gap-2 items-start">
-                        <span className="font-black text-xl text-white">{item.quantidade}x</span>
-                        <div className="flex-1 mt-0.5">
-                          <p className={`font-bold text-lg leading-tight ${isPronto ? 'text-green-100' : 'text-gray-100'}`}>
-                            {item.nome}
-                          </p>
-                          {item.observacao && (
-                            <div className="mt-1.5 bg-yellow-500/10 border border-yellow-500/20 p-2 rounded text-yellow-200 font-medium text-sm">
-                              ⚠️ {item.observacao}
-                            </div>
-                          )}
+                  {itensApenasCozinha.map((item: any, idx: number) => {
+                    const pontoMatch = item.observacao?.match(/\[Ponto: ([^\]]+)\]/);
+                    const ponto = pontoMatch ? pontoMatch[1] : null;
+                    const resto = item.observacao?.replace(/\[Ponto: [^\]]+\]\s*/, '').trim();
+
+                    return (
+                      <div key={idx} className="border-b border-gray-700/50 pb-3 last:border-0 last:pb-0">
+                        <div className="flex gap-2 items-start">
+                          <span className="font-black text-xl text-white">{item.quantidade}x</span>
+                          <div className="flex-1 mt-0.5">
+                            <p className={`font-bold text-lg leading-tight ${isPronto ? 'text-green-100' : 'text-gray-100'}`}>
+                              {item.nome}
+                            </p>
+                            {item.observacao && (
+                              <div className="mt-1.5 bg-yellow-500/10 border border-yellow-500/20 p-2 rounded font-medium text-[15px]">
+                                ⚠️{ponto && <span className="text-orange-400 font-bold"> {ponto}</span>}{ponto && resto ? ' —' : ''}{resto && <span className="text-yellow-200"> {resto}</span>}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* BOTÕES DE AÇÃO */}
-                <div className="p-3 bg-black/20 border-t border-gray-700/50 grid grid-cols-2 gap-2">
-                  {pedido.status === 'pendente' && (
-                    <button onClick={() => alterarStatus(pedido.id, 'preparando')} className="col-span-2 bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2">
-                      <Flame className="w-5 h-5" /> Iniciar Preparo
-                    </button>
-                  )}
-                  {pedido.status === 'preparando' && (
-                    <button onClick={() => alterarStatus(pedido.id, 'pronto')} className="col-span-2 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(22,163,74,0.4)]">
-                      <CheckCircle2 className="w-6 h-6" /> Marcar como Pronto
-                    </button>
-                  )}
-                  {pedido.status === 'pronto' && (
-                    <div className="col-span-2 flex items-center justify-center gap-2 py-2 text-green-500 font-bold">
-                      <CheckCircle2 className="w-5 h-5" /> Aguardando Liberação
-                    </div>
-                  )}
-                </div>
+                {pedido.status !== 'pendente' && (
+                  <div className="p-3 bg-black/20 border-t border-gray-700/50">
+                    {pedido.status === 'preparando' && (
+                      <button onClick={() => alterarStatus(pedido.id, 'pronto')} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(22,163,74,0.4)]">
+                        <CheckCircle2 className="w-6 h-6" /> Marcar como Pronto
+                      </button>
+                    )}
+                    {pedido.status === 'pronto' && (
+                      <div className="flex items-center justify-center gap-2 py-2 text-green-500 font-bold">
+                        <CheckCircle2 className="w-5 h-5" /> Aguardando Liberação
+                      </div>
+                    )}
+                  </div>
+                )}
 
               </div>
             );
