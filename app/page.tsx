@@ -509,7 +509,7 @@ export default function GarcomApp() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((numero) => {
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((numero) => {
             const itensNestaMesa = comandasPorMesa[numero] || [];
             const mesaOcupada = itensNestaMesa.length > 0;
             const aguardandoPagamento = mesasAguardandoPagamento.includes(numero);

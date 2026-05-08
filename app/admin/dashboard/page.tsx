@@ -914,8 +914,8 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             
             {mesaSelecionadaCaixa === null ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((numero) => {
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((numero) => {
                   const itensNestaMesa = comandasCaixa[numero] || [];
                   const mesaOcupada = itensNestaMesa.length > 0;
                   const aguardandoPagamento = mesasAguardando.includes(numero);
@@ -1010,8 +1010,8 @@ export default function AdminDashboard() {
                       <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
                         <h3 className="text-xl font-black text-gray-900 mb-1">Trocar de Mesa</h3>
                         <p className="text-sm text-gray-500 mb-4">Selecione a mesa de destino para a comanda da Mesa {mesaSelecionadaCaixa}.</p>
-                        <div className="grid grid-cols-5 gap-2">
-                          {Array.from({ length: 10 }, (_, i) => i + 1).map(num => {
+                        <div className="grid grid-cols-6 gap-2">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(num => {
                             const ocupada = num in comandasCaixa && num !== mesaSelecionadaCaixa;
                             const atual = num === mesaSelecionadaCaixa;
                             return (
