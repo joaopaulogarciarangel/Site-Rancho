@@ -10,6 +10,8 @@ const OPCOES_ACOMPANHAMENTOS = [
   'Aipim frito', 'Linguiça', 'Couve', 'Cebola', 'Molho vinagrete', 'Banana frita'
 ];
 
+const OPCOES_ACOMP_EXECUTIVO = ['Farofa', 'Couve', 'Molho vinagrete'];
+
 const PONTOS_CARNE = [
   'Mal Passada', 'Ao Ponto para Mal', 'Ao Ponto', 'Ao Ponto para Bem', 'Bem Passada'
 ];
@@ -231,7 +233,9 @@ export default function GarcomApp() {
       return [...prev, {
         uid: Math.random().toString(36).substr(2, 9),
         idProduto: idFinal,
-        nome: rotulo ? `${produto.nome} (${rotulo})` : produto.nome,
+        nome: produto.categoria === 'Pratos Executivos'
+          ? `[Prato Executivo] ${rotulo ? `${produto.nome} (${rotulo})` : produto.nome}`
+          : rotulo ? `${produto.nome} (${rotulo})` : produto.nome,
         preco,
         quantidade: 1,
         observacao,
@@ -289,10 +293,10 @@ export default function GarcomApp() {
   };
 
   const handleBotaoMais = (produto: Produto, idOpcao?: string, rotulo?: string, preco?: number) => {
-    if (produto.categoria === 'Carnes Principais') {
+    if (produto.categoria === 'Carnes Principais' || produto.categoria === 'Pratos Executivos') {
       setModalAcomp({ produto, idOpcao: idOpcao || '', rotulo: rotulo || '', preco: preco || produto.preco });
       setSelecaoAcomp({});
-      setPontoCarne(''); 
+      setPontoCarne('');
     } else {
       const idFinal = idOpcao ? `${produto.id}-${idOpcao}` : produto.id;
       adicionarAoCarrinho(produto, idFinal, rotulo || '', preco !== undefined ? preco : produto.preco);
@@ -758,22 +762,43 @@ export default function GarcomApp() {
                 </div>
               )}
 
-              <div className="p-4 space-y-2">
-                <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (4 Acompanhamentos)</h4>
-                {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
-                  const qtdSelecionada = selecaoAcomp[acomp] || 0;
-                  return (
-                    <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                      <span className="font-extrabold text-gray-900">{acomp}</span>
-                      <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
-                        <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
-                        <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
-                        <button onClick={() => incrementarAcomp(acomp)} className="p-1.5 rounded bg-white text-gray-900 shadow-sm active:scale-95"><Plus className="w-5 h-5" /></button>
+              {modalAcomp.produto.categoria === 'Carnes Principais' && (
+                <div className="p-4 space-y-2">
+                  <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (4 Acompanhamentos)</h4>
+                  {OPCOES_ACOMPANHAMENTOS.map((acomp) => {
+                    const qtdSelecionada = selecaoAcomp[acomp] || 0;
+                    return (
+                      <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                        <span className="font-extrabold text-gray-900">{acomp}</span>
+                        <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
+                          <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
+                          <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
+                          <button onClick={() => incrementarAcomp(acomp)} className="p-1.5 rounded bg-white text-gray-900 shadow-sm active:scale-95"><Plus className="w-5 h-5" /></button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {modalAcomp.produto.categoria === 'Pratos Executivos' && (
+                <div className="p-4 space-y-2">
+                  <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamento</h4>
+                  {OPCOES_ACOMP_EXECUTIVO.map((acomp) => {
+                    const qtdSelecionada = selecaoAcomp[acomp] || 0;
+                    return (
+                      <div key={acomp} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                        <span className="font-extrabold text-gray-900">{acomp}</span>
+                        <div className="flex items-center gap-3 bg-gray-100 rounded-lg p-1 border border-gray-300">
+                          <button onClick={() => decrementarAcomp(acomp)} className={`p-1.5 rounded ${qtdSelecionada > 0 ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`} disabled={qtdSelecionada === 0}><Minus className="w-5 h-5" /></button>
+                          <span className="font-black w-6 text-center text-black text-lg">{qtdSelecionada}</span>
+                          <button onClick={() => incrementarAcomp(acomp)} className="p-1.5 rounded bg-white text-gray-900 shadow-sm active:scale-95"><Plus className="w-5 h-5" /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="p-5 bg-white border-t border-gray-200">
