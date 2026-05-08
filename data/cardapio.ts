@@ -120,8 +120,8 @@ export const PRODUTOS: Produto[] = [
   // ==========================================
   // SOBREMESAS E CAFÉ
   // ==========================================
-  { id: 's1', nome: 'Pudim da Casa', preco: 8.00, categoria: 'Sobremesas', descricao: '', setor: 'bar' },
-  { id: 's2', nome: 'Doce Caseiro', preco: 9.00, categoria: 'Sobremesas', descricao: 'Abóbora ou Coco.', setor: 'bar' },
-  { id: 's3', nome: 'Banana Flambada c/ Sorvete', preco: 14.00, categoria: 'Sobremesas', descricao: '', setor: 'bar' },
+  { id: 's1', nome: 'Pudim da Casa', preco: 8.00, categoria: 'Sobremesas', descricao: '', setor: 'cozinha' },
+  { id: 's2', nome: 'Doce Caseiro', preco: 9.00, categoria: 'Sobremesas', descricao: 'Abóbora ou Coco.', setor: 'cozinha' },
+  { id: 's3', nome: 'Banana Flambada c/ Sorvete', preco: 14.00, categoria: 'Sobremesas', descricao: '', setor: 'cozinha' },
   { id: 'cf1', nome: 'Cafezinho Gourmet c/ Petit Four', preco: 3.50, categoria: 'Café', descricao: '', setor: 'bar' },
 ];
