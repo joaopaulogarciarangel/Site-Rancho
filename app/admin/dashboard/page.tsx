@@ -332,8 +332,6 @@ export default function AdminDashboard() {
 
     const itensConsumidos = comandasCaixa[mesaSelecionadaCaixa] || [];
     const subtotal = Number(itensConsumidos.reduce((acc, item) => acc + item.preco * item.quantidade, 0).toFixed(2));
-    const valorTaxa = incluirTaxa ? Number((subtotal * 0.1).toFixed(2)) : 0;
-    const totalFinal = Number((subtotal + valorTaxa).toFixed(2));
 
     // Calcular tempo médio de preparo apenas para pedidos com itens de cozinha relevantes
     const ehItemCozinha = (id: string) => {
@@ -361,7 +359,7 @@ export default function AdminDashboard() {
       await supabase.from('vendas_historico').insert([{
         mesa: mesaSelecionadaCaixa,
         itens: itensConsumidos,
-        valor_total: totalFinal,
+        valor_total: subtotal,
         forma_pagamento: formaPagamentoCaixa,
         tempo_preparo_min: tempoPreparo,
         taxa_servico_paga: incluirTaxa
@@ -589,7 +587,8 @@ export default function AdminDashboard() {
       const hora = new Date(v.criado_em).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
       const itensFormatados = v.itens && Array.isArray(v.itens) ? v.itens.map((i: any) => `${i.quantidade}x ${i.nome}`).join(' - ') : 'Sem registro';
       const dataEspecial = identificarDataEspecial(v.criado_em);
-      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', dataEspecial || '—', Number(v.valor_total).toFixed(2).replace('.', ','), v.tempo_preparo_min ?? 'N/D', `"${itensFormatados}"`].join(';');
+      const valorCSV = v.taxa_servico_paga !== false ? Number((Number(v.valor_total) * 1.1).toFixed(2)) : Number(v.valor_total);
+      return [data, hora, v.mesa, v.forma_pagamento || 'N/D', v.clima_temperatura ? `${v.clima_temperatura}C` : 'N/D', v.clima_condicao || 'N/D', dataEspecial || '—', valorCSV.toFixed(2).replace('.', ','), v.tempo_preparo_min ?? 'N/D', `"${itensFormatados}"`].join(';');
     });
     const blob = new Blob(["﻿" + [cabecalho.join(';'), ...linhas].join(String.fromCharCode(10))], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
