@@ -58,6 +58,7 @@ export default function GarcomApp() {
   } | null>(null);
   const [selecaoAcomp, setSelecaoAcomp] = useState<Record<string, number>>({});
   const [pontoCarne, setPontoCarne] = useState('');
+  const [saborDoce, setSaborDoce] = useState('');
 
   // =====================================================
   // ESTADOS DO ITEM AVULSO (NOVO)
@@ -293,10 +294,11 @@ export default function GarcomApp() {
   };
 
   const handleBotaoMais = (produto: Produto, idOpcao?: string, rotulo?: string, preco?: number) => {
-    if (produto.categoria === 'Carnes Principais' || produto.categoria === 'Pratos Executivos') {
+    if (produto.categoria === 'Carnes Principais' || produto.categoria === 'Pratos Executivos' || produto.id === 's2') {
       setModalAcomp({ produto, idOpcao: idOpcao || '', rotulo: rotulo || '', preco: preco || produto.preco });
       setSelecaoAcomp({});
       setPontoCarne('');
+      setSaborDoce('');
     } else {
       const idFinal = idOpcao ? `${produto.id}-${idOpcao}` : produto.id;
       adicionarAoCarrinho(produto, idFinal, rotulo || '', preco !== undefined ? preco : produto.preco);
@@ -325,11 +327,19 @@ export default function GarcomApp() {
   const confirmarModalAcomp = () => {
     if (!modalAcomp) return;
 
+    // Doce Caseiro: sabor vira parte do nome (rotulo)
+    if (modalAcomp.produto.id === 's2') {
+      const idFinal = `s2-${saborDoce.toLowerCase()}`;
+      adicionarAoCarrinho(modalAcomp.produto, idFinal, saborDoce, modalAcomp.preco, '');
+      setModalAcomp(null);
+      return;
+    }
+
     const obsAcomps = Object.entries(selecaoAcomp)
       .filter(([_, qtd]) => qtd > 0)
       .map(([nome, qtd]) => qtd > 1 ? `${qtd}x ${nome}` : nome)
       .join(', ');
-    
+
     let textoObservacao = '';
     if (pontoCarne) textoObservacao += `[Ponto: ${pontoCarne}] `;
     if (obsAcomps) textoObservacao += `com ${obsAcomps}`;
@@ -762,6 +772,24 @@ export default function GarcomApp() {
                 </div>
               )}
 
+              {modalAcomp.produto.id === 's2' && (
+                <div className="p-5 bg-white border-b border-gray-200 shadow-sm">
+                  <h4 className="font-black text-gray-900 mb-3 text-base">Obrigatório: Sabor do Doce</h4>
+                  <div className="flex gap-3">
+                    {['Abóbora', 'Coco'].map(sabor => (
+                      <button
+                        key={sabor}
+                        onClick={() => setSaborDoce(sabor)}
+                        className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm border-2 transition-colors active:scale-95
+                          ${saborDoce === sabor ? 'bg-orange-600 text-white border-orange-600 shadow-md' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'}`}
+                      >
+                        {sabor}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {modalAcomp.produto.categoria === 'Carnes Principais' && (
                 <div className="p-4 space-y-2">
                   <h4 className="font-black text-gray-900 mb-2 px-1">Acompanhamentos (4 Acompanhamentos)</h4>
@@ -809,9 +837,9 @@ export default function GarcomApp() {
               
               <button 
                 onClick={confirmarModalAcomp} 
-                disabled={modalAcomp.produto.categoria === 'Carnes Principais' && pontoCarne === ''} 
+                disabled={(modalAcomp.produto.categoria === 'Carnes Principais' && pontoCarne === '') || (modalAcomp.produto.id === 's2' && saborDoce === '')} 
                 className={`w-full font-black text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all 
-                  ${(modalAcomp.produto.categoria !== 'Carnes Principais' || pontoCarne !== '') ? 'bg-orange-600 text-white active:scale-[0.98]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                  ${((modalAcomp.produto.categoria !== 'Carnes Principais' || pontoCarne !== '') && (modalAcomp.produto.id !== 's2' || saborDoce !== '')) ? 'bg-orange-600 text-white active:scale-[0.98]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
               >
                 <ListPlus className="w-5 h-5" /> Adicionar ao Pedido
               </button>
